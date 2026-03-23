@@ -1,891 +1,1501 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm";
 
-// ─── MOCK DATA (mirrors backend) ───────────────────────────────────────────
+function convertToRailwayTime(timeStr) {
+  const date = new Date(`1970-01-01 ${timeStr}`);
+  return date.toTimeString().slice(0, 5);
+}
+// ─── TRAIN DATA ──────────────────────────────────────────────────────────────
 const TRAINS = [
-  { number: "12951", name: "Mumbai Rajdhani", nameHindi: "मुंबई राजधानी", from: "Mumbai Central", to: "New Delhi", scheduledArrival: "08:35", actualArrival: "08:52", scheduledDeparture: "08:45", actualDeparture: "09:02", platform: 3, status: "delayed", delay: 17, coaches: ["LOCO", "H1", "H2", "A1", "A2", "B1", "B2", "B3", "B4", "S1", "S2", "S3", "S4", "S5", "S6", "GS", "GS"] },
-  { number: "12002", name: "Bhopal Shatabdi", nameHindi: "भोपाल शताब्दी", from: "New Delhi", to: "Habibganj", scheduledArrival: "10:00", actualArrival: "10:00", scheduledDeparture: "06:00", actualDeparture: "06:00", platform: 1, status: "on-time", delay: 0, coaches: ["LOCO", "EC", "CC", "CC", "CC", "CC", "CC", "CC", "CC", "CC", "CC", "CC"] },
-  { number: "22691", name: "Rajdhani Express", nameHindi: "राजधानी एक्सप्रेस", from: "Bangalore", to: "New Delhi", scheduledArrival: "20:00", actualArrival: "21:30", scheduledDeparture: "20:10", actualDeparture: "21:40", platform: 5, status: "delayed", delay: 90, coaches: ["LOCO", "H1", "A1", "A2", "B1", "B2", "B3", "B4", "S1", "S2", "S3", "S4", "GS", "GS"] },
-  { number: "12301", name: "Howrah Rajdhani", nameHindi: "हावड़ा राजधानी", from: "Howrah", to: "New Delhi", scheduledArrival: "09:55", actualArrival: "09:55", scheduledDeparture: "10:05", actualDeparture: "10:05", platform: 2, status: "on-time", delay: 0, coaches: ["LOCO", "H1", "H2", "A1", "A2", "B1", "B2", "B3", "S1", "S2", "S3", "S4", "S5", "GS"] },
-  { number: "19027", name: "Vivek Express", nameHindi: "विवेक एक्सप्रेस", from: "Dibrugarh", to: "Kanyakumari", scheduledArrival: "14:20", actualArrival: "15:05", scheduledDeparture: "14:30", actualDeparture: "15:15", platform: 6, status: "delayed", delay: 45, coaches: ["LOCO", "SL", "SL", "SL", "SL", "SL", "SL", "GS", "GS", "GS"] },
-  { number: "12563", name: "Bihar Sampark Kranti", nameHindi: "बिहार संपर्क क्रांति", from: "New Delhi", to: "Rajendranagar", scheduledArrival: "11:00", actualArrival: "11:00", scheduledDeparture: "11:05", actualDeparture: "11:05", platform: 4, status: "on-time", delay: 0, coaches: ["LOCO", "A1", "B1", "B2", "S1", "S2", "S3", "S4", "GS"] },
+  {
+    number: "12951", name: "Mumbai Rajdhani", nameHindi: "मुंबई राजधानी", nameTelugu: "ముంబై రాజ్‌ధాని",
+    from: "Mumbai Central", to: "New Delhi",
+    scheduledArrival: "08:35", actualArrival: "08:52",
+    scheduledDeparture: "08:45", actualDeparture: "09:02",
+    platform: 3, status: "delayed", delay: 17, type: "arriving",
+    coaches: ["LOCO","H1","H2","A1","A2","B1","B2","B3","B4","S1","S2","S3","S4","S5","S6","GS","GS"]
+  },
+  {
+    number: "12002", name: "Bhopal Shatabdi", nameHindi: "भोपाल शताब्दी", nameTelugu: "భోపాల్ శతాబ్ది",
+    from: "New Delhi", to: "Habibganj",
+    scheduledArrival: "10:00", actualArrival: "10:00",
+    scheduledDeparture: "06:00", actualDeparture: "06:00",
+    platform: 1, status: "on-time", delay: 0, type: "departing",
+    coaches: ["LOCO","EC","CC","CC","CC","CC","CC","CC","CC","CC","CC","CC"]
+  },
+  {
+    number: "22691", name: "Rajdhani Express", nameHindi: "राजधानी एक्सप्रेस", nameTelugu: "రాజ్‌ధాని ఎక్స్‌ప్రెస్",
+    from: "Bangalore", to: "New Delhi",
+    scheduledArrival: "20:00", actualArrival: "21:30",
+    scheduledDeparture: "20:10", actualDeparture: "21:40",
+    platform: 5, status: "delayed", delay: 90, type: "passing",
+    coaches: ["LOCO","H1","A1","A2","B1","B2","B3","B4","S1","S2","S3","S4","GS","GS"]
+  },
+  {
+    number: "12301", name: "Howrah Rajdhani", nameHindi: "हावड़ा राजधानी", nameTelugu: "హౌరా రాజ్‌ధాని",
+    from: "Howrah", to: "New Delhi",
+    scheduledArrival: "09:55", actualArrival: "09:55",
+    scheduledDeparture: "10:05", actualDeparture: "10:05",
+    platform: 2, status: "on-time", delay: 0, type: "arriving",
+    coaches: ["LOCO","H1","H2","A1","A2","B1","B2","B3","S1","S2","S3","S4","S5","GS"]
+  },
+  {
+    number: "19027", name: "Vivek Express", nameHindi: "विवेक एक्सप्रेस", nameTelugu: "వివేక్ ఎక్స్‌ప్రెస్",
+    from: "Dibrugarh", to: "Kanyakumari",
+    scheduledArrival: "14:20", actualArrival: "15:05",
+    scheduledDeparture: "14:30", actualDeparture: "15:15",
+    platform: 6, status: "delayed", delay: 45, type: "passing",
+    coaches: ["LOCO","SL","SL","SL","SL","SL","SL","GS","GS","GS"]
+  },
+  {
+    number: "12563", name: "Bihar Sampark Kranti", nameHindi: "बिहार संपर्क क्रांति", nameTelugu: "బీహార్ సంపర్క్ క్రాంతి",
+    from: "New Delhi", to: "Rajendranagar",
+    scheduledArrival: "11:00", actualArrival: "11:00",
+    scheduledDeparture: "11:05", actualDeparture: "11:05",
+    platform: 4, status: "on-time", delay: 0, type: "departing",
+    coaches: ["LOCO","A1","B1","B2","S1","S2","S3","S4","GS"]
+  },
+  {
+    number: "17064", name: "Ajanta Express", nameHindi: "अजंता एक्सप्रेस", nameTelugu: "అజంతా ఎక్స్‌ప్రెస్",
+    from: "Secunderabad", to: "Mumbai CSMT",
+    scheduledArrival: "13:10", actualArrival: "13:10",
+    scheduledDeparture: "13:20", actualDeparture: "13:20",
+    platform: 3, status: "on-time", delay: 0, type: "departing",
+    coaches: ["LOCO","S1","S2","S3","S4","S5","B1","B2","GS","GS"]
+  },
+  {
+    number: "12723", name: "AP Express", nameHindi: "एपी एक्सप्रेस", nameTelugu: "ఏపీ ఎక్స్‌ప్రెస్",
+    from: "Hyderabad", to: "Hazrat Nizamuddin",
+    scheduledArrival: "07:30", actualArrival: "07:45",
+    scheduledDeparture: "07:40", actualDeparture: "07:55",
+    platform: 1, status: "delayed", delay: 15, type: "arriving",
+    coaches: ["LOCO","A1","A2","B1","B2","B3","S1","S2","S3","S4","S5","GS"]
+  },
 ];
 
-const PLATFORMS = [
-  { id: 1, crowdLevel: 45, trains: ["12002"], amenities: ["Waiting Room", "Water Cooler"] },
-  { id: 2, crowdLevel: 30, trains: ["12301"], amenities: ["Waiting Room", "Bookstall"] },
-  { id: 3, crowdLevel: 78, trains: ["12951"], amenities: ["Food Stall", "ATM", "Water Cooler"] },
-  { id: 4, crowdLevel: 20, trains: ["12563"], amenities: ["Waiting Room"] },
-  { id: 5, crowdLevel: 65, trains: ["22691"], amenities: ["Food Stall", "Pharmacy", "Water Cooler"] },
-  { id: 6, crowdLevel: 55, trains: ["19027"], amenities: ["Waiting Room", "Bookstall"] },
-];
-const MAP_FACILITIES = [
-  { id: "pf1", label: "PF 1", x: 12, y: 34, w: 28, h: 7, type: "platform", pid: 1 },
-  { id: "pf2", label: "PF 2", x: 12, y: 43, w: 28, h: 7, type: "platform", pid: 2 },
-  { id: "pf3", label: "PF 3", x: 12, y: 52, w: 28, h: 7, type: "platform", pid: 3 },
-  { id: "pf4", label: "PF 4", x: 60, y: 34, w: 28, h: 7, type: "platform", pid: 4 },
-  { id: "pf5", label: "PF 5", x: 60, y: 43, w: 28, h: 7, type: "platform", pid: 5 },
-  { id: "pf6", label: "PF 6", x: 60, y: 52, w: 28, h: 7, type: "platform", pid: 6 },
-  { id: "tc1", label: "🎫 Tickets", x: 5, y: 8, w: 20, h: 8, type: "ticket" },
-  { id: "tc2", label: "🎫 UTS", x: 28, y: 8, w: 16, h: 8, type: "ticket" },
-  { id: "wr1", label: "🛋 Waiting", x: 47, y: 8, w: 20, h: 8, type: "waiting" },
-  { id: "fo1", label: "🍱 Food Court", x: 70, y: 8, w: 24, h: 8, type: "food" },
-  { id: "ex1", label: "🚪 Main Exit", x: 30, y: 78, w: 20, h: 8, type: "exit" },
-  { id: "ex2", label: "🚪 South Exit", x: 68, y: 78, w: 20, h: 8, type: "exit" },
-  { id: "atm1", label: "🏧 ATM", x: 5, y: 70, w: 14, h: 8, type: "atm" },
-  { id: "ph1", label: "💊 Pharmacy", x: 55, y: 70, w: 20, h: 8, type: "medical" },
-  { id: "kiosk", label: "📍 YOU", x: 40, y: 70, w: 12, h: 8, type: "kiosk" },
-];
-
-const COACH_COLORS = {
-  LOCO: "#374151", H1: "#7c3aed", H2: "#7c3aed",
-  A1: "#0891b2", A2: "#0891b2",
-  B1: "#059669", B2: "#059669", B3: "#059669", B4: "#059669",
-  S1: "#d97706", S2: "#d97706", S3: "#d97706", S4: "#d97706", S5: "#d97706", S6: "#d97706",
-  EC: "#0891b2", CC: "#059669", SL: "#d97706", GS: "#6b7280",
+// ─── PLATFORM FACILITIES ─────────────────────────────────────────────────────
+const PLATFORM_FACILITIES = {
+  1: {
+    food:      ["Juice Corner (near gate 1A)", "Amul Parlour (mid-platform)"],
+    washroom:  ["Near gate 1A (paid)", "End of platform 1"],
+    cloakroom: ["Main cloakroom near gate 1 – open 24h"],
+    waiting:   ["AC Waiting Hall – ground floor near gate 1"],
+    escalator: ["Gate 1 escalator (up only)"],
+    atm:       ["SBI ATM near ticket counter"],
+    pharmacy:  [],
+    wifi:      true,
+    wheelchairRamp: true,
+  },
+  2: {
+    food:      ["Café Coffee Day (platform 2 entry)", "Railway Canteen (mid)"],
+    washroom:  ["Platform 2 – near footbridge"],
+    cloakroom: [],
+    waiting:   ["Open waiting benches"],
+    escalator: ["Footbridge escalator (both sides)"],
+    atm:       [],
+    pharmacy:  [],
+    wifi:      true,
+    wheelchairRamp: false,
+  },
+  3: {
+    food:      ["IRCTC Food Stall", "Hot Meals Counter", "Bisleri water stall"],
+    washroom:  ["Platform 3 – near IRCTC stall (free)", "End of platform 3"],
+    cloakroom: ["Cloak room near platform 3 ramp – ₹30/hr"],
+    waiting:   ["Platform 3 waiting shed"],
+    escalator: ["Main escalator (platform 3 ↔ overbridge)"],
+    atm:       ["HDFC ATM near ramp"],
+    pharmacy:  ["MedPlus counter near gate 3"],
+    wifi:      true,
+    wheelchairRamp: true,
+  },
+  4: {
+    food:      ["Snack stall near platform 4 exit"],
+    washroom:  ["Platform 4 – near exit gate"],
+    cloakroom: [],
+    waiting:   ["Covered waiting area"],
+    escalator: [],
+    atm:       [],
+    pharmacy:  [],
+    wifi:      false,
+    wheelchairRamp: false,
+  },
+  5: {
+    food:      ["Food Court (large – 20 items)", "Domino's Express", "Chai & Snack corner"],
+    washroom:  ["Platform 5 – near food court (paid)", "Disabled-friendly washroom near ramp"],
+    cloakroom: ["Cloak room – platform 5 entry – open 6am–11pm"],
+    waiting:   ["AC Lounge near platform 5 (₹50 entry)", "General waiting shed"],
+    escalator: ["Escalator up/down near food court"],
+    atm:       ["Axis Bank ATM inside food court"],
+    pharmacy:  ["Apollo Pharmacy – platform 5 end"],
+    wifi:      true,
+    wheelchairRamp: true,
+  },
+  6: {
+    food:      ["Tea/Coffee vending machine", "Snack cart"],
+    washroom:  ["Platform 6 – start of platform"],
+    cloakroom: [],
+    waiting:   ["Waiting benches near gate 6"],
+    escalator: [],
+    atm:       [],
+    pharmacy:  [],
+    wifi:      true,
+    wheelchairRamp: false,
+  },
 };
 
-const COACH_LABELS = {
-  LOCO: "Engine", H1: "1st AC", H2: "1st AC", A1: "2nd AC", A2: "2nd AC",
-  B1: "3rd AC", B2: "3rd AC", B3: "3rd AC", B4: "3rd AC",
-  S1: "Sleeper", S2: "Sleeper", S3: "Sleeper", S4: "Sleeper", S5: "Sleeper", S6: "Sleeper",
-  EC: "Exec Chair", CC: "Chair Car", SL: "Sleeper", GS: "General",
-};
+// ─── TRAIN NAME ALIASES (for natural language name lookup) ────────────────────
+const TRAIN_NAME_ALIASES = [
+  { aliases:["mumbai rajdhani","12951","मुंबई राजधानी","ముంబై రాజ్‌ధాని"], number:"12951" },
+  { aliases:["bhopal shatabdi","12002","भोपाल शताब्दी","భోపాల్ శతాబ్ది"], number:"12002" },
+  { aliases:["rajdhani express","22691","राजधानी एक्सप्रेस","రాజ్‌ధాని ఎక్స్‌ప్రెస్","rajdhani"], number:"22691" },
+  { aliases:["howrah rajdhani","12301","हावड़ा राजधानी","హౌరా రాజ్‌ధాని"], number:"12301" },
+  { aliases:["vivek express","19027","विवेक एक्सप्रेस","వివేక్ ఎక్స్‌ప్రెస్","vivek"], number:"19027" },
+  { aliases:["bihar sampark","12563","बिहार संपर्क क्रांति","బీహార్ సంపర్క్ క్రాంతి","sampark kranti"], number:"12563" },
+  { aliases:["ajanta express","17064","अजंता एक्सप्रेस","అజంతా ఎక్స్‌ప్రెస్","ajanta"], number:"17064" },
+  { aliases:["ap express","12723","एपी एक्सप्रेस","ఏపీ ఎక్స్‌ప్రెస్","andhra pradesh express"], number:"12723" },
+];
 
-// ─── INTENT DETECTION (frontend fallback) ──────────────────────────────────
-function formatTimeForSpeech(time) {
-  if (!time) return "";
-
-  const [hourMin, period] = time.split(" ");
-  const [hour, minute] = hourMin.split(":");
-
-  if (minute === "00") {
-    return `${hour} o'clock ${period === "AM" ? "in the morning" : "in the evening"}`;
-  } else {
-    return `${hour} ${minute} ${period}`;
+function findTrainByName(text) {
+  const lower = text.toLowerCase();
+  // Exact 5-digit number
+  const numMatch = lower.match(/\b(\d{5})\b/);
+  if (numMatch) return TRAINS.find(t => t.number === numMatch[1]) || null;
+  // Alias lookup
+  for (const entry of TRAIN_NAME_ALIASES) {
+    if (entry.aliases.some(a => lower.includes(a.toLowerCase()))) {
+      return TRAINS.find(t => t.number === entry.number) || null;
+    }
   }
+  return null;
 }
 
-function detectIntent(text, lang) {
-  const lower = text.toLowerCase();
+const COACH_COLORS = {
+  LOCO:"#374151",H1:"#7c3aed",H2:"#7c3aed",
+  A1:"#0891b2",A2:"#0891b2",
+  B1:"#059669",B2:"#059669",B3:"#059669",B4:"#059669",
+  S1:"#d97706",S2:"#d97706",S3:"#d97706",S4:"#d97706",S5:"#d97706",S6:"#d97706",
+  EC:"#0891b2",CC:"#059669",SL:"#d97706",GS:"#6b7280",
+};
+const COACH_LABELS = {
+  LOCO:"Engine",H1:"1st AC",H2:"1st AC",A1:"2nd AC",A2:"2nd AC",
+  B1:"3rd AC",B2:"3rd AC",B3:"3rd AC",B4:"3rd AC",
+  S1:"Sleeper",S2:"Sleeper",S3:"Sleeper",S4:"Sleeper",S5:"Sleeper",S6:"Sleeper",
+  EC:"Exec Chair",CC:"Chair Car",SL:"Sleeper",GS:"General",
+};
 
-  // 🔹 Query type detection
-  const isPlatformQuery = /platform|प्लेटफॉर्म/.test(lower);
-  const isDelayQuery = /delay|late|देरी/.test(lower);
-  const isDepartureQuery = /departure|leave|time|timing|कब/.test(lower);
+// ─── LANGUAGES ────────────────────────────────────────────────────────────────
+const LANGUAGES = [
+  { code:"en",    label:"English",       speechLang:"en-IN", flag:"🇬🇧" },
+  { code:"hi",    label:"हिंदी",          speechLang:"hi-IN", flag:"🇮🇳" },
+  { code:"te",    label:"తెలుగు",         speechLang:"te-IN", flag:"🏳️" },
+  { code:"en_hi", label:"Eng + हिंदी",   speechLang:"hi-IN", flag:"🔀" },
+  { code:"en_te", label:"Eng + తెలుగు",  speechLang:"te-IN", flag:"🔀" },
+];
 
-  // 🔹 1. Train number detection
-  const numMatch = lower.match(/\b(1[0-9]{4})\b/);
-  if (numMatch) {
-    const train = TRAINS.find(t => t.number === numMatch[1]);
+// ─── TRANSLATIONS ─────────────────────────────────────────────────────────────
+const TR = {
+  en: {
+    greeting:"Namaste! How can I assist you?",
+    subGreeting:"Speak or type your query below",
+    tapToSpeak:"TAP TO SPEAK",
+    listening:"LISTENING...",
+    typeHere:"Type here… e.g. status of train 12951",
+    search:"Search",
+    voiceAssistant:"Voice Assistant",
+    trainBoard:"Train Board",
+    allTrains:"All Trains",
+    arriving:"Arriving",
+    departing:"Departing",
+    passThrough:"Pass Through",
+    trainNo:"TRAIN #", trainName:"TRAIN NAME",
+    arrival:"ARRIVAL", departure:"DEPARTURE",
+    pf:"PF", delay:"DELAY", statusLabel:"STATUS",
+    onTime:"ON TIME", delayed:"DELAYED", passing:"PASSING",
+    noTrains:"No trains in this category",
+    coaches:"Coaches", viewCoaches:"View Coaches", close:"Close",
+    boardSubtitle:"Live Arrivals, Departures & Pass-Through",
+    notFound:"Train not found.",
+    askTrainOrPf:"Please ask about a train number or platform.",
+    foodResp:"Food Court is near platforms 5-6.",
+    ticketResp:"Ticket counters are near the main entrance.",
+  },
+  hi: {
+    greeting:"नमस्ते! मैं आपकी सहायता करूँगा।",
+    subGreeting:"अपना प्रश्न बोलें या टाइप करें",
+    tapToSpeak:"बात करने के लिए दबाएँ",
+    listening:"सुन रहा हूँ...",
+    typeHere:"यहाँ टाइप करें… जैसे: ट्रेन 12951 की स्थिति",
+    search:"खोजें",
+    voiceAssistant:"वॉइस असिस्टेंट",
+    trainBoard:"ट्रेन बोर्ड",
+    allTrains:"सभी ट्रेनें",
+    arriving:"आगमन",
+    departing:"प्रस्थान",
+    passThrough:"गुजरने वाली",
+    trainNo:"ट्रेन नं", trainName:"ट्रेन नाम",
+    arrival:"आगमन", departure:"प्रस्थान",
+    pf:"प्लेटफॉर्म", delay:"देरी", statusLabel:"स्थिति",
+    onTime:"समय पर", delayed:"देरी", passing:"गुजर रही",
+    noTrains:"इस श्रेणी में कोई ट्रेन नहीं",
+    coaches:"कोच", viewCoaches:"कोच देखें", close:"बंद करें",
+    boardSubtitle:"लाइव आगमन, प्रस्थान और ट्रांजिट",
+    notFound:"ट्रेन नहीं मिली।",
+    askTrainOrPf:"कृपया ट्रेन नंबर या प्लेटफॉर्म के बारे में पूछें।",
+    foodResp:"फूड कोर्ट प्लेटफॉर्म 5-6 के पास है।",
+    ticketResp:"टिकट काउंटर मुख्य प्रवेश के पास है।",
+  },
+  te: {
+    greeting:"నమస్కారం! నేను మీకు ఎలా సహాయపడగలను?",
+    subGreeting:"మీ ప్రశ్నను మాట్లాడండి లేదా టైప్ చేయండి",
+    tapToSpeak:"మాట్లాడటానికి నొక్కండి",
+    listening:"వింటున్నాను...",
+    typeHere:"ఇక్కడ టైప్ చేయండి… ఉదా: ట్రెయిన్ 12951 స్థితి",
+    search:"శోధించు",
+    voiceAssistant:"వాయిస్ అసిస్టెంట్",
+    trainBoard:"ట్రెయిన్ బోర్డ్",
+    allTrains:"అన్ని ట్రెయిన్లు",
+    arriving:"వస్తున్నవి",
+    departing:"వెళ్తున్నవి",
+    passThrough:"దాటి వెళ్తున్నవి",
+    trainNo:"ట్రెయిన్ నం", trainName:"ట్రెయిన్ పేరు",
+    arrival:"రాక", departure:"నిష్క్రమణ",
+    pf:"ప్లాట్‌ఫారం", delay:"జాప్యం", statusLabel:"స్థితి",
+    onTime:"సమయానికి", delayed:"ఆలస్యం", passing:"దాటుతున్నది",
+    noTrains:"ఈ వర్గంలో ట్రెయిన్లు లేవు",
+    coaches:"కోచ్‌లు", viewCoaches:"కోచ్‌లు చూడండి", close:"మూసివేయి",
+    boardSubtitle:"లైవ్ రాకలు, నిష్క్రమణలు & ట్రాన్సిట్",
+    notFound:"ట్రెయిన్ కనుగొనబడలేదు.",
+    askTrainOrPf:"దయచేసి ట్రెయిన్ నంబర్ లేదా ప్లాట్‌ఫారం గురించి అడగండి.",
+    foodResp:"ఫుడ్ కోర్ట్ ప్లాట్‌ఫారం 5-6 దగ్గర ఉంది.",
+    ticketResp:"టికెట్ కౌంటర్లు ప్రధాన ప్రవేశద్వారం దగ్గర ఉన్నాయి.",
+  },
+};
 
-    if (train) {
-      let response = "";
+function getLangBase(lang) {
+  if (lang === "en_hi") return "hi";
+  if (lang === "en_te") return "te";
+  return lang;
+}
 
-      if (isPlatformQuery) {
-        response = lang === "hi"
-          ? `कृपया ध्यान दीजिए...गाड़ी संख्या ${train.number}, ${train.nameHindi}, प्लेटफॉर्म संख्या ${train.platform} पर खड़ी है।`
-          : `Attention please. Train number ${train.number}, ${train.name}, is standing on platform number ${train.platform}.`;
-      }
-
-      else if (isDelayQuery) {
-        response = lang === "hi"
-          ? `कृपया ध्यान दीजिए...गाड़ी संख्या ${train.number}, ${train.nameHindi}, लगभग ${train.delay} मिनट की देरी से चल रही है।`
-          : `Attention please. Train number ${train.number}, ${train.name}, is running late by approximately ${train.delay} minutes.`;
-      }
-
-      else if (isDepartureQuery) {
-        response = lang === "hi"
-          ? `कृपया ध्यान दीजिए...गाड़ी संख्या ${train.number}, ${train.nameHindi}, प्लेटफॉर्म संख्या ${train.platform} से ${train.actualDeparture} बजे प्रस्थान करेगी।`
-          : `Attention please. Train number ${train.number}, ${train.name}, will depart from platform number ${train.platform} at ${train.actualDeparture}.`;
-      }
-
-      else {
-        response = lang === "hi"
-          ? `कृपया ध्यान दीजिए...गाड़ी संख्या ${train.number}, ${train.nameHindi}, प्लेटफॉर्म संख्या ${train.platform} पर आएगी। यह गाड़ी ${train.actualDeparture} बजे प्रस्थान करेगी।`
-          : `Attention please. Train number ${train.number}, ${train.name}, will arrive on platform number ${train.platform}. It is scheduled to depart at ${train.actualDeparture}.`;
-      }
-
-      return {
-        intent: "train_status",
-        train,
-        highlight: "train_status",
-        response
-      };
-    }
-
-    return {
-      intent: "not_found",
-      response: lang === "hi"
-        ? `क्षमा करें...गाड़ी संख्या ${numMatch[1]} उपलब्ध नहीं है।`
-        : `Sorry. Train number ${numMatch[1]} is not available.`,
-      highlight: null
-    };
+function getTr(key, lang) {
+  const base = getLangBase(lang);
+  const dict = TR[base] || TR.en;
+  const val = dict[key] !== undefined ? dict[key] : (TR.en[key] || key);
+  if ((lang === "en_hi" || lang === "en_te") && TR.en[key] && TR.en[key] !== val) {
+    return TR.en[key] + " / " + val;
   }
+  return val;
+}
 
-  // 🔹 2. Train name detection
-  const trainByName = TRAINS.find(t =>
-    lower.includes(t.name.toLowerCase()) ||
-    lower.includes("rajdhani")
-  );
+function getTrainName(train, lang) {
+  if (lang === "hi" || lang === "en_hi") return train.nameHindi;
+  if (lang === "te" || lang === "en_te") return train.nameTelugu;
+  return train.name;
+}
 
-  if (trainByName) {
-    let response = "";
+// ─── INTENT DETECTION ─────────────────────────────────────────────────────────
+function buildTrainResponse(train, lang, focusArrival, focusDeparture) {
+  const base = getLangBase(lang);
+  const delayNote = train.delay > 0
+    ? (base==="hi" ? ` (${train.delay} मिनट देरी)` : base==="te" ? ` (${train.delay} నిమిషాలు ఆలస్యం)` : ` (+${train.delay} min delay)`)
+    : (base==="hi" ? " (समय पर)" : base==="te" ? " (సమయానికి)" : " (on time)");
+  if (focusArrival) {
+    if (base==="hi") return `ट्रेन ${train.number} ${train.nameHindi} का आगमन प्लेटफॉर्म ${train.platform} पर ${train.actualArrival} बजे${delayNote}। निर्धारित: ${convertToRailwayTime(train.scheduledArrival)} बजे।`;
+    if (base==="te") return `ట్రెయిన్ ${train.number} ${train.nameTelugu} ప్లాట్‌ఫారం ${train.platform}కి ${train.actualArrival}కి వస్తుంది${delayNote}. షెడ్యూల్: ${convertToRailwayTime(train.scheduledArrival)}.`;
+    return `Train ${train.number} ${train.name} arrives Platform ${train.platform} at ${train.actualArrival}${delayNote}. Scheduled: ${convertToRailwayTime(train.scheduledArrival)}.`;
+  }
+  if (focusDeparture) {
+    if (base==="hi") return `ट्रेन ${train.number} ${train.nameHindi} प्लेटफॉर्म ${train.platform} से ${train.actualDeparture} बजे प्रस्थान करेगी${delayNote}। निर्धारित: ${convertToRailwayTime(train.scheduledDeparture)} बजे।`;
+    if (base==="te") return `ట్రెయిన్ ${train.number} ${train.nameTelugu} ప్లాట్‌ఫారం ${train.platform} నుండి ${train.actualDeparture}కి బయలుదేరుతుంది${delayNote}. షెడ్యూల్: ${convertToRailwayTime(train.scheduledDeparture)}.`;
+    return `Train ${train.number} ${train.name} departs Platform ${train.platform} at ${train.actualDeparture}${delayNote}. Scheduled: ${convertToRailwayTime(train.scheduledDeparture)}.`;
+  }
+  if (lang==="en_hi") {
+    const d = train.delay>0 ? ` ${train.delay} min late / ${train.delay} मिनट देरी` : " On time / समय पर";
+    return `Train ${train.number} – ${train.name} / ${train.nameHindi} | Platform / प्लेटफॉर्म ${train.platform} | Arr: ${train.actualArrival} | Dep: ${train.actualDeparture}${d}.`;
+  }
+  if (lang==="en_te") {
+    const d = train.delay>0 ? ` ${train.delay} min late / ${train.delay} నిమిషాలు ఆలస్యం` : " On time / సమయానికి";
+    return `Train ${train.number} – ${train.name} / ${train.nameTelugu} | Platform / ప్లాట్‌ఫారం ${train.platform} | Arr: ${train.actualArrival} | Dep: ${train.actualDeparture}${d}.`;
+  }
+  if (base==="hi") return `ट्रेन ${train.number} – ${train.nameHindi} | प्लेटफॉर्म ${train.platform} | आगमन: ${train.actualArrival} | प्रस्थान: ${train.actualDeparture}${delayNote}।`;
+  if (base==="te") return `ట్రెయిన్ ${train.number} – ${train.nameTelugu} | ప్లాట్‌ఫారం ${train.platform} | రాక: ${train.actualArrival} | నిష్క్రమణ: ${train.actualDeparture}${delayNote}.`;
+  return `Train ${train.number} – ${train.name} | Platform ${train.platform} | Arrives: ${train.actualArrival} | Departs: ${train.actualDeparture}${delayNote}.`;
+}
 
-    if (isPlatformQuery) {
-      response = lang === "hi"
-        ? `कृपया ध्यान दीजिए...${trainByName.nameHindi} प्लेटफॉर्म संख्या ${trainByName.platform} पर खड़ी है।`
-        : `Attention please. ${trainByName.name} is standing on platform number ${trainByName.platform}.`;
-    }
+function buildFacilityResponse(pfNum, facilityKey, lang) {
+  const fac = PLATFORM_FACILITIES[pfNum];
+  const base = getLangBase(lang);
+  if (!fac) {
+    if (base==="hi") return `प्लेटफॉर्म ${pfNum} के लिए सुविधा जानकारी उपलब्ध नहीं है।`;
+    if (base==="te") return `ప్లాట్‌ఫారం ${pfNum} కోసం సౌకర్యాల సమాచారం అందుబాటులో లేదు.`;
+    return `Facility info for Platform ${pfNum} not available.`;
+  }
+  const items = fac[facilityKey] || [];
+  const labels = {
+    food:      { en:"Food stalls",    hi:"खाने के स्टॉल",       te:"ఆహార స్టాల్లు" },
+    washroom:  { en:"Washrooms",      hi:"शौचालय",               te:"వాష్‌రూమ్‌లు" },
+    cloakroom: { en:"Cloak rooms",    hi:"क्लोक रूम",            te:"క్లోక్ రూమ్‌లు" },
+    waiting:   { en:"Waiting areas",  hi:"प्रतीक्षा क्षेत्र",   te:"వేచి ఉండే ప్రాంతాలు" },
+    escalator: { en:"Escalators",     hi:"एस्केलेटर",            te:"ఎస్కలేటర్లు" },
+    atm:       { en:"ATMs",           hi:"एटीएम",                te:"ఏటీఎమ్‌లు" },
+    pharmacy:  { en:"Pharmacy",       hi:"फार्मेसी",              te:"ఫార్మసీ" },
+  };
+  const label = (labels[facilityKey]||{})[base] || (labels[facilityKey]||{}).en || facilityKey;
+  if (items.length === 0) {
+    if (base==="hi") return `प्लेटफॉर्म ${pfNum} पर ${label} उपलब्ध नहीं है।`;
+    if (base==="te") return `ప్లాట్‌ఫారం ${pfNum}లో ${label} అందుబాటులో లేదు.`;
+    return `No ${label.toLowerCase()} available at Platform ${pfNum}.`;
+  }
+  const list = items.join(" · ");
+  if (base==="hi") return `प्लेटफॉर्म ${pfNum} पर ${label}: ${list}`;
+  if (base==="te") return `ప్లాట్‌ఫారం ${pfNum}లో ${label}: ${list}`;
+  return `Platform ${pfNum} – ${label}: ${list}`;
+}
 
-    else if (isDelayQuery) {
-      response = lang === "hi"
-        ? `कृपया ध्यान दीजिए...${trainByName.nameHindi} लगभग ${trainByName.delay} मिनट देरी से चल रही है।`
-        : `Attention please. ${trainByName.name} is running late by approximately ${trainByName.delay} minutes.`;
-    }
+// ───────────────── LANGUAGE HELPER ─────────────────
+function getResponseByLang(base, en, hi, te) {
+  if (base === "hi") return hi;
+  if (base === "te") return te;
+  return en;
+}
 
-    else if (isDepartureQuery) {
-      response = lang === "hi"
-        ? `कृपया ध्यान दीजिए...${trainByName.nameHindi} ${trainByName.actualDeparture} बजे प्रस्थान करेगी।`
-        : `Attention please. ${trainByName.name} will depart at ${trainByName.actualDeparture}.`;
-    }
+// ───────────────── MAIN FUNCTION ─────────────────
+function detectIntent(text, lang) {
+  const lower = text.toLowerCase().trim();
+  if (!lower) return null;
 
-    else {
-      response = lang === "hi"
-        ? `कृपया ध्यान दीजिए...${trainByName.nameHindi}, प्लेटफॉर्म संख्या ${trainByName.platform} से ${trainByName.actualDeparture} बजे प्रस्थान करेगी।`
-        : `Attention please. ${trainByName.name} will depart from platform number ${trainByName.platform} at ${trainByName.actualDeparture}.`;
-    }
+  const base = getLangBase(lang);
 
+  // ── Extract platform number ─────────────────────
+  const pfRaw = lower.match(/platform\s*(?:no\.?|number)?\s*(\d+)|(\d+)\s*(?:नंबर\s*)?(?:प्लेटफॉर्म|platform)|(?:ప్లాట్‌ఫారం)\s*(\d+)/i);
+  const pfNum = pfRaw ? parseInt(pfRaw[1] || pfRaw[2] || pfRaw[3]) : null;
+
+  // ── Facility detection ──────────────────────────
+  const isFoodQ      = /food|eat|stall|restaurant|canteen|cafe|snack|खाना|భోజనం/i.test(lower);
+  const isWashroomQ  = /washroom|toilet|restroom|bathroom|శౌచాలయం|వాష్‌రూమ్/i.test(lower);
+  const isCloakQ     = /cloak|luggage|locker/i.test(lower);
+  const isWaitingQ   = /waiting|lounge|wait/i.test(lower);
+  const isEscalatorQ = /escalat|lift|elevator/i.test(lower);
+  const isAnyFacility = isFoodQ || isWashroomQ || isCloakQ || isWaitingQ || isEscalatorQ;
+
+  // ── Timing detection ────────────────────────────
+  const isArrivalQ   = /arriv|reach|incoming|आगमन|రాక/i.test(lower);
+  const isDepartureQ = /depart|leav|going|प्रस्थान|వెళ్తుంది/i.test(lower);
+  const isTimingQ    = /time|when|schedule|कब|ఎప్పుడు/i.test(lower);
+
+  // ── General keywords ────────────────────────────
+  const isWhereQ    = /where|कहाँ|ఎక్కడ/i.test(lower);
+  const isPlatformQ = /platform|प्लेटफॉर्म|ప్లాట్‌ఫారం/i.test(lower);
+
+  // ── Find train ─────────────────────────────────
+  const train = findTrainByName(lower);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ✅ WHERE IS TRAIN
+  if (train && isWhereQ) {
     return {
       intent: "train_status",
-      train: trainByName,
-      highlight: "train_status",
-      response
+      response: getResponseByLang(
+        base,
+        `Train ${train.number} is at Platform ${train.platform}.`,
+        `ट्रेन ${train.number} प्लेटफॉर्म ${train.platform} पर है।`,
+        `ట్రెయిన్ ${train.number} ప్లాట్‌ఫారం ${train.platform}లో ఉంది.`
+      )
     };
   }
 
-  // 🔹 3. Platform info
-  const pfMatch = lower.match(/platform\s*(\d+)|प्लेटफॉर्म\s*(\d+)/);
-  if (pfMatch) {
-    const n = parseInt(pfMatch[1] || pfMatch[2]);
-    const pf = PLATFORMS.find(p => p.id === n);
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ✅ WHICH PLATFORM
+  if (train && isPlatformQ && !isTimingQ) {
+    return {
+      intent: "platform_query",
+      response: getResponseByLang(
+        base,
+        `${train.name} will arrive at Platform ${train.platform}.`,
+        `${train.nameHindi} प्लेटफॉर्म ${train.platform} पर आएगी।`,
+        `${train.nameTelugu} ప్లాట్‌ఫారం ${train.platform}కి వస్తుంది.`
+      )
+    };
+  }
 
-    if (pf) {
-      const pfTrains = TRAINS
-        .filter(t => t.platform === n)
-        .map(t => t.name)
-        .join(", ");
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ✅ ARRIVAL TIME
+  if (train && isArrivalQ && !isDepartureQ) {
+    return {
+      intent: "arrival_time",
+      response: getResponseByLang(
+        base,
+        `Train ${train.number} ${train.name} will arrive at ${train.actualArrival} on Platform ${train.platform}.`,
+        `ट्रेन ${train.nameHindi} ${train.actualArrival} बजे प्लेटफॉर्म ${train.platform} पर आएगी।`,
+        `ట్రెయిన్ ${train.nameTelugu} ${train.actualArrival}కు ప్లాట్‌ఫారం ${train.platform}కి వస్తుంది.`
+      )
+    };
+  }
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ✅ DEPARTURE TIME
+  if (train && isDepartureQ && !isArrivalQ) {
+    return {
+      intent: "departure_time",
+      response: getResponseByLang(
+        base,
+        `Train ${train.number} ${train.name} will depart at ${train.actualDeparture} from Platform ${train.platform}.`,
+        `ट्रेन ${train.nameHindi} ${train.actualDeparture} बजे प्लेटफॉर्म ${train.platform} से प्रस्थान करेगी।`,
+        `ట్రెయిన్ ${train.nameTelugu} ${train.actualDeparture}కు ప్లాట్‌ఫారం ${train.platform} నుంచి బయలుదేరుతుంది.`
+      )
+    };
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ✅ FULL TIMING
+  if (train && isTimingQ) {
+    return {
+      intent: "timing",
+      response: getResponseByLang(
+        base,
+        `Train ${train.number} ${train.name} arrives at ${train.actualArrival} and departs at ${train.actualDeparture} from Platform ${train.platform}.`,
+        `ट्रेन ${train.nameHindi} ${train.actualArrival} बजे आएगी और ${train.actualDeparture} बजे प्लेटफॉर्म ${train.platform} से जाएगी।`,
+        `ట్రెయిన్ ${train.nameTelugu} ${train.actualArrival}కు వస్తుంది మరియు ${train.actualDeparture}కు ప్లాట్‌ఫారం ${train.platform} నుంచి వెళ్తుంది.`
+      )
+    };
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ✅ DEFAULT TRAIN STATUS
+  if (train) {
+    return {
+      intent: "train_status",
+      response: getResponseByLang(
+        base,
+        `Train ${train.number} ${train.name} is at Platform ${train.platform}. Arrival: ${train.actualArrival}, Departure: ${train.actualDeparture}.`,
+        `ट्रेन ${train.nameHindi} प्लेटफॉर्म ${train.platform} पर है। आगमन: ${train.actualArrival}, प्रस्थान: ${train.actualDeparture}।`,
+        `ట్రెయిన్ ${train.nameTelugu} ప్లాట్‌ఫారం ${train.platform}లో ఉంది. రాక: ${train.actualArrival}, నిష్క్రమణ: ${train.actualDeparture}.`
+      )
+    };
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ✅ TRAINS AT PLATFORM
+  if (pfNum && !isAnyFacility) {
+    const pfTrains = TRAINS.filter(t => t.platform === pfNum);
+
+    if (pfTrains.length === 0) {
       return {
-        intent: "platform",
-        platform: pf,
-        response: lang === "hi"
-          ? `कृपया ध्यान दीजिए...प्लेटफॉर्म ${n} पर आने वाली गाड़ियाँ हैं: ${pfTrains || "कोई ट्रेन नहीं"}।`
-          : `Attention please. Trains on platform ${n} are: ${pfTrains || "none at the moment"}.`,
-        highlight: "map"
+        intent: "platform_trains",
+        response: getResponseByLang(
+          base,
+          `No trains currently at Platform ${pfNum}.`,
+          `प्लेटफॉर्म ${pfNum} पर कोई ट्रेन नहीं है।`,
+          `ప్లాట్‌ఫారం ${pfNum}లో ట్రెయిన్లు లేవు.`
+        )
       };
     }
-  }
-
-  // 🔹 4. Crowd
-  if (/crowd|congestion|भीड़/.test(lower)) {
-    const sorted = [...PLATFORMS].sort((a, b) => b.crowdLevel - a.crowdLevel);
 
     return {
-      intent: "crowd",
-      response: lang === "hi"
-        ? `कृपया ध्यान दीजिए...प्लेटफॉर्म ${sorted[0].id} पर सबसे अधिक भीड़ है।`
-        : `Attention please. Platform ${sorted[0].id} is currently the most crowded.`,
-      highlight: "crowd"
+      intent: "platform_trains",
+      response: getResponseByLang(
+        base,
+        `Trains at Platform ${pfNum}: ${pfTrains.map(t => `${t.number} ${t.name}`).join(", ")}.`,
+        `प्लेटफॉर्म ${pfNum} पर ट्रेनें: ${pfTrains.map(t => `${t.number} ${t.nameHindi}`).join(", ")}।`,
+        `ప్లాట్‌ఫారం ${pfNum}లో ట్రెయిన్లు: ${pfTrains.map(t => `${t.number} ${t.nameTelugu}`).join(", ")}.`
+      )
     };
   }
 
-  // 🔹 5. Facilities
-  if (/food|eat|खाना|restaurant/.test(lower)) {
-    return {
-      intent: "facility",
-      response: lang === "hi"
-        ? "कृपया ध्यान दीजिए...फूड कोर्ट प्लेटफॉर्म 5 और 6 के पास स्थित है।"
-        : "Attention please. Food court is located near platforms 5 and 6.",
-      highlight: "map"
-    };
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ✅ FACILITY AT PLATFORM
+  if (isAnyFacility && pfNum) {
+    if (isFoodQ)
+      return { intent:"facility", response:getResponseByLang(base,
+        `Food stalls available at Platform ${pfNum}.`,
+        `प्लेटफॉर्म ${pfNum} पर खाने के स्टॉल उपलब्ध हैं।`,
+        `ప్లాట్‌ఫారం ${pfNum}లో ఆహార స్టాల్లు ఉన్నాయి.`) };
+
+    if (isWashroomQ)
+      return { intent:"facility", response:getResponseByLang(base,
+        `Washrooms available at Platform ${pfNum}.`,
+        `प्लेटफॉर्म ${pfNum} पर शौचालय उपलब्ध हैं।`,
+        `ప్లాట్‌ఫారం ${pfNum}లో వాష్‌రూమ్‌లు ఉన్నాయి.`) };
+
+    if (isCloakQ)
+      return { intent:"facility", response:getResponseByLang(base,
+        `Cloak room available at Platform ${pfNum}.`,
+        `प्लेटफॉर्म ${pfNum} पर क्लोक रूम उपलब्ध है।`,
+        `ప్లాట్‌ఫారం ${pfNum}లో క్లోక్ రూమ్ ఉంది.`) };
+
+    if (isWaitingQ)
+      return { intent:"facility", response:getResponseByLang(base,
+        `Waiting hall available at Platform ${pfNum}.`,
+        `प्लेटफॉर्म ${pfNum} पर प्रतीक्षा कक्ष उपलब्ध है।`,
+        `ప్లాట్‌ఫారం ${pfNum}లో వేచిచోటు ఉంది.`) };
+
+    if (isEscalatorQ)
+      return { intent:"facility", response:getResponseByLang(base,
+        `Escalator available at Platform ${pfNum}.`,
+        `प्लेटफॉर्म ${pfNum} पर एस्केलेटर उपलब्ध है।`,
+        `ప్లాట్‌ఫారం ${pfNum}లో ఎస్కలేటర్ ఉంది.`) };
   }
 
-  if (/ticket|टिकट/.test(lower)) {
-    return {
-      intent: "facility",
-      response: lang === "hi"
-        ? "कृपया ध्यान दीजिए...टिकट काउंटर मुख्य प्रवेश द्वार के पास है।"
-        : "Attention please. Ticket counters are near the main entrance.",
-      highlight: "map"
-    };
-  }
-
-  if (/wait|rest|प्रतीक्षा/.test(lower)) {
-    return {
-      intent: "facility",
-      response: lang === "hi"
-        ? "कृपया ध्यान दीजिए...प्रतीक्षा कक्ष प्लेटफॉर्म 1, 2 और 4 के पास है।"
-        : "Attention please. Waiting rooms are located near platforms 1, 2 and 4.",
-      highlight: "map"
-    };
-  }
-
-  // 🔹 6. Fallback
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ❌ UNKNOWN
   return {
-    intent: "unknown",
-    response: lang === "hi"
-      ? "क्षमा करें...मैं आपकी बात समझ नहीं पाया। कृपया ट्रेन संख्या या सुविधा के बारे में पूछें।"
-      : "Sorry, I did not understand. Please ask about a train number or facility.",
-    highlight: null
+    intent:"unknown",
+    response:getResponseByLang(
+      base,
+      "I didn't understand. Ask about train, platform, timing or facilities.",
+      "मैं समझ नहीं पाया। कृपया ट्रेन, प्लेटफॉर्म, समय या सुविधाओं के बारे में पूछें।",
+      "నేను అర్థం చేసుకోలేకపోయాను. దయచేసి ట్రెయిన్, ప్లాట్‌ఫారం లేదా సౌకర్యాల గురించి అడగండి."
+    )
   };
-}// ─── SPEAK (TTS) ────────────────────────────────────────────────────────────
+}
 
-function speak(text, lang = "en-IN") {
-
+// ─── SPEAK ────────────────────────────────────────────────────────────────────
+function speakText(text, lang) {
   if (!window.speechSynthesis) return;
-
-  // Convert numbers like 12951 → 1 2 9 5 1
-  const formattedText = text.replace(/\d+/g, function (num) {
-    return num.split('').join(' ');
-  });
 
   window.speechSynthesis.cancel();
 
-  const utt = new SpeechSynthesisUtterance(formattedText);
+  // 🔹 Convert train numbers like 12951 → 1 2 9 5 1
+  const formattedText = text.replace(/\b\d{5}\b/g, (num) => {
+    return num.split("").join(" ");
+  });
 
-  utt.lang = lang === "hi" ? "hi-IN" : "en-IN";
-  utt.rate = 0.79;   // slower like railway announcement
+  const langObj = LANGUAGES.find(l => l.code === lang) || LANGUAGES[0];
+
+  const utt = new SpeechSynthesisUtterance(formattedText);
+  utt.lang = langObj.speechLang;
+  utt.rate = 0.9;
   utt.pitch = 1.0;
 
   window.speechSynthesis.speak(utt);
 }
-
-// ─── QR GENERATOR ───────────────────────────────────────────────────────────
-async function generateQR(text) {
-  try {
-    return await QRCode.toDataURL(text, { width: 200, margin: 1, color: { dark: "#0f172a", light: "#f8fafc" } });
-  } catch { return null; }
-}
-
-// ─── CLOCK ──────────────────────────────────────────────────────────────────
+// ─── CLOCK ────────────────────────────────────────────────────────────────────
 function useClock() {
   const [time, setTime] = useState(new Date());
-  useEffect(() => { const id = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(id); }, []);
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
   return time;
-}
-
-// ─── CROWD COLOR ─────────────────────────────────────────────────────────────
-function crowdColor(level) {
-  if (level < 40) return "#22c55e";
-  if (level < 70) return "#f59e0b";
-  return "#ef4444";
-}
-function crowdLabel(level) {
-  if (level < 40) return "Low";
-  if (level < 70) return "Moderate";
-  return "High";
 }
 
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ════════════════════════════════════════════════════════════════════════════
 export default function RailwayKiosk() {
-  const [lang, setLang] = useState("en");
-  const [tab, setTab] = useState("home");
-  const [listening, setListening] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [intentResult, setIntentResult] = useState(null);
-  const [platforms, setPlatforms] = useState(PLATFORMS);
-  const [selectedTrain, setSelectedTrain] = useState(null);
-  const [coachTrain, setCoachTrain] = useState(null);
-  const [coachInput, setCoachInput] = useState("");
-  const [qrData, setQrData] = useState(null);
-  const [qrImg, setQrImg] = useState(null);
-  const [highlightPf, setHighlightPf] = useState(null);
-  const [mapHighlight, setMapHighlight] = useState(null);
-  const recogRef = useRef(null);
-  const time = useClock();
+  const [lang, setLang]                   = useState("en");
+  const [showLangMenu, setShowLangMenu]   = useState(false);
+  const [tab, setTab]                     = useState("assistant");
+  const [trainFilter, setTrainFilter]     = useState("all");
+  const [listening, setListening]         = useState(false);
+  const [inputText, setInputText]         = useState("");
+  const [lastQuery, setLastQuery]         = useState("");
+  const [intentResult, setIntentResult]   = useState(null);
+  const [expandedTrain, setExpandedTrain] = useState(null);
+  const [history, setHistory]             = useState([]);   // [{id,query,response,lang,langLabel,timestamp}]
+  const [showHistory, setShowHistory]     = useState(false);
 
-  // Simulate crowd fluctuation
+  const recogRef    = useRef(null);
+  const langRef     = useRef(lang);   // mutable ref so callbacks always see fresh lang
+  const langMenuRef = useRef(null);
+  const time        = useClock();
+
+  // Keep langRef current whenever lang state changes
+  useEffect(() => { langRef.current = lang; }, [lang]);
+
+  // Close language menu on outside click
   useEffect(() => {
-    const id = setInterval(() => {
-      setPlatforms(prev => prev.map(p => ({
-        ...p,
-        crowdLevel: Math.max(10, Math.min(99, p.crowdLevel + Math.floor((Math.random() - 0.5) * 8)))
-      })));
-    }, 4000);
-    return () => clearInterval(id);
+    function handler(e) {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) {
+        setShowLangMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Voice listening
+  const currentLang = LANGUAGES.find(l => l.code === lang) || LANGUAGES[0];
+
+  // ── Core query processor — reads langRef so it's always fresh ─────────────
+  const processQuery = useCallback((rawText) => {
+    const activeLang = langRef.current;
+    const text = (rawText || "").trim();
+    if (!text) return;
+    setLastQuery(text);
+    const result = detectIntent(text, activeLang);
+    if (result) {
+      setIntentResult(result);
+      speakText(result.response, activeLang);
+      // Save to history
+      const langObj = LANGUAGES.find(l => l.code === activeLang) || LANGUAGES[0];
+      setHistory(prev => [
+        {
+          id: Date.now(),
+          query: text,
+          response: result.response,
+          lang: activeLang,
+          langLabel: langObj.flag + " " + langObj.label,
+          timestamp: new Date(),
+        },
+        ...prev,
+      ].slice(0, 50)); // keep last 50 entries
+    }
+  }, []); // intentionally no deps — uses ref
+
+  // ── Voice ─────────────────────────────────────────────────────────────────
   const startListening = useCallback(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition not supported. Please use Chrome browser.");
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      alert("Speech recognition is not supported. Please use Chrome or Edge.");
       return;
     }
-    const recog = new SpeechRecognition();
-    recog.lang = lang === "hi" ? "hi-IN" : "en-IN";
-    recog.interimResults = false;
+    try { if (recogRef.current) recogRef.current.stop(); } catch (_) {}
+
+    const recog = new SR();
+    recog.lang            = LANGUAGES.find(l => l.code === langRef.current)?.speechLang || "en-IN";
+    recog.interimResults  = false;
     recog.maxAlternatives = 1;
-    recog.onstart = () => setListening(true);
-    recog.onend = () => setListening(false);
-    recog.onerror = () => setListening(false);
+    recog.continuous      = false;
+
+    recog.onstart  = () => setListening(true);
+    recog.onend    = () => setListening(false);
+    recog.onerror  = (err) => { console.warn("Speech error:", err.error); setListening(false); };
     recog.onresult = (e) => {
       const text = e.results[0][0].transcript;
-      setTranscript(text);
-      processQuery(text);
+      setInputText(text);   // show spoken text in the input box
+      processQuery(text);   // process and show result
     };
+
     recogRef.current = recog;
     recog.start();
-  }, [lang]);
+  }, [processQuery]);
 
-  const stopListening = () => {
-    recogRef.current?.stop();
+  const stopListening = useCallback(() => {
+    try { if (recogRef.current) recogRef.current.stop(); } catch (_) {}
     setListening(false);
-  };
+  }, []);
 
-  const processQuery = async (text) => {
-    const result = detectIntent(text, lang);
-    setIntentResult(result);
-    speak(result.response, lang);
-    if (result.highlight === "train_status" && result.train) {
-      setSelectedTrain(result.train);
-      setTab("status");
-    } else if (result.highlight === "map" || result.highlight === "crowd") {
-      setTab(result.highlight === "crowd" ? "crowd" : "map");
-      if (result.platform) setHighlightPf(result.platform.id);
-    }
-    if (result.intent === "train_status" && result.train) {
-      const url = `Train ${result.train.number} – ${result.train.name}\nPlatform: ${result.train.platform}\nStatus: ${result.train.status}\nDeparture: ${result.train.actualDeparture}`;
-      const img = await generateQR(url);
-      setQrImg(img);
-      setQrData(url);
-    }
-  };
-
+  // ── Text form submit ──────────────────────────────────────────────────────
   const handleTextSubmit = (e) => {
     e.preventDefault();
-    if (transcript.trim()) processQuery(transcript);
+    processQuery(inputText);
   };
 
-  // ── Coach finder ──────────────────────────────────────────────────────────
-  const handleCoachSearch = (e) => {
-    e?.preventDefault();
-    const t = TRAINS.find(tr => tr.number === coachInput.trim());
-    setCoachTrain(t || null);
+  // ── Filtered trains ───────────────────────────────────────────────────────
+  const filteredTrains = TRAINS.filter(tr => {
+    if (trainFilter === "all")       return true;
+    if (trainFilter === "arriving")  return tr.type === "arriving";
+    if (trainFilter === "departing") return tr.type === "departing";
+    if (trainFilter === "passing")   return tr.type === "passing";
+    return true;
+  });
+
+  const counts = {
+    all:       TRAINS.length,
+    arriving:  TRAINS.filter(t => t.type === "arriving").length,
+    departing: TRAINS.filter(t => t.type === "departing").length,
+    passing:   TRAINS.filter(t => t.type === "passing").length,
   };
 
-  // ── QR for selected info ──────────────────────────────────────────────────
-  const generateInfoQR = async (info) => {
-    const img = await generateQR(info);
-    setQrImg(img);
-    setQrData(info);
-    setTab("qr");
-  };
+  const marqueeText = TRAINS.map(t =>
+    t.delay > 0 ? `🔴 ${t.number} ${t.name} – ${t.delay} MIN LATE`
+                : `✅ ${t.number} ${t.name} – ON TIME`
+  ).join("   ·   ");
 
-  const T = {
-    home: lang === "hi" ? "होम" : "Home",
-    status: lang === "hi" ? "ट्रेन स्थिति" : "Train Status",
-    map: lang === "hi" ? "स्टेशन मानचित्र" : "Station Map",
-    coach: lang === "hi" ? "कोच स्थिति" : "Coach Finder",
-    crowd: lang === "hi" ? "भीड़ घनत्व" : "Crowd Density",
-    qr: lang === "hi" ? "QR कोड" : "QR Code",
-  };
+  const quickChips = [
+    { num:"12951",                  short:"Mumbai Rajdhani" },
+    { num:"12723",                  short:"AP Express" },
+    { num:"where is 22691",         short:"Rajdhani location" },
+    { num:"arrival time of 12301",  short:"Howrah arrival" },
+    { num:"food stalls platform 3", short:"PF 3 food" },
+    { num:"washroom platform 5",    short:"PF 5 washroom" },
+    { num:"trains at platform 2",   short:"PF 2 trains" },
+    { num:"escalator",              short:"Escalators" },
+  ];
+
+  const [input, setInput] = useState("");
+  const [response, setResponse] = useState("");
+  function handleSearch(query) {
+  const result = detectIntent(query, selectedLang);
+
+  if (result) {
+    setResponse(result.response);
+    speakText(result.response, selectedLang); // 🔊 important
+  }
+}
+  const SAMPLE_QUERIES = [
+  "where is 12951",
+  "where is mumbai rajdhani",
+
+  "which platform is 12951",
+  "mumbai rajdhani platform number",
+
+  "arrival time of 12951",
+  "when will mumbai rajdhani arrive",
+
+  "departure time of 12951",
+  "when does vivek express leave",
+
+  "timing of 12951",
+  "schedule of mumbai rajdhani",
+
+  "what train is in platform 3",
+  "trains at platform 5",
+
+  "food stalls in platform 3",
+  "where can i eat",
+
+  "washroom in platform 3",
+  "toilet kaha hai",
+
+  "cloak room in platform 1",
+  "luggage storage kaha hai",
+
+  "waiting hall in platform 5",
+  "lounge kaha hai",
+
+  "ticket counter kaha hai",
+  "where to buy ticket"
+];
 
   return (
+    <>
     <div style={{
-      width: "100%", height: "100vh", background: "#030712",
-      fontFamily: "'Rajdhani', 'Noto Sans Devanagari', sans-serif",
-      display: "flex", flexDirection: "column", overflow: "hidden",
-      userSelect: "none"
+
+  width: "100%",
+  minHeight: "100vh",
+  background: "#030712",
+      fontFamily:"'Rajdhani','Noto Sans Devanagari','Noto Sans Telugu',sans-serif",
+      display:"flex", flexDirection:"column", overflow:"hidden",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap');
-        ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:#0f172a; } ::-webkit-scrollbar-thumb { background:#1e3a5f; border-radius:2px; }
-        @keyframes pulse-ring { 0%{transform:scale(1);opacity:1} 100%{transform:scale(2.2);opacity:0} }
-        @keyframes marquee { 0%{transform:translateX(100%)} 100%{transform:translateX(-100%)} }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        @keyframes scanline { 0%{top:-5%} 100%{top:105%} }
-        @keyframes glow { 0%,100%{box-shadow:0 0 8px #0ea5e9} 50%{box-shadow:0 0 24px #0ea5e9,0 0 48px #0ea5e9} }
-        .tab-btn { transition: all 0.2s; }
-        .tab-btn:hover { background: #1e3a5f !important; }
-        .train-row:hover { background: #0f2744 !important; cursor:pointer; }
-        .voice-btn { animation: glow 2s infinite; }
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&display=swap');
+        *{box-sizing:border-box;}
+        ::-webkit-scrollbar{width:4px}
+        ::-webkit-scrollbar-track{background:#0f172a}
+        ::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px}
+        @keyframes pulse-ring{0%{transform:scale(1);opacity:1}100%{transform:scale(2.2);opacity:0}}
+        @keyframes marquee{0%{transform:translateX(100vw)}100%{transform:translateX(-100%)}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
+        @keyframes glow-pulse{0%,100%{box-shadow:0 0 10px #0ea5e9,0 0 20px rgba(14,165,233,0.25)}50%{box-shadow:0 0 28px #0ea5e9,0 0 56px rgba(14,165,233,0.5)}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .train-row:hover{background:#0f2744!important;cursor:pointer}
+        .glow-btn{animation:glow-pulse 2s ease-in-out infinite}
+        .lang-opt:hover{background:#1e3a5f!important}
+        .chip-btn:hover{background:#0f2744!important;border-color:#2563eb!important}
+        .filter-tab:hover{background:#0f2744!important}
+        input::placeholder{color:#334155}
+        @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}
+        .hist-item:hover{background:#0f2744!important}
+        .hist-replay:hover{opacity:1!important}
       `}</style>
 
-      {/* ── TOP BAR ── */}
-      <div style={{ background: "linear-gradient(90deg,#0c1825 0%,#0f2744 50%,#0c1825 100%)", borderBottom: "1px solid #1e3a5f", padding: "0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: "56px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "linear-gradient(135deg,#0ea5e9,#2563eb)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>🚆</div>
+      {/* ═══ TOP BAR ═══ */}
+      <header style={{
+        background:"linear-gradient(90deg,#060c18 0%,#0c1a30 50%,#060c18 100%)",
+        borderBottom:"1px solid #1e3a5f",
+        padding:"0 14px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        height:"52px", flexShrink:0,
+      }}>
+        <div style={{display:"flex",alignItems:"center",gap:"9px",flexShrink:0}}>
+          <div style={{
+            width:"32px",height:"32px",borderRadius:"50%",
+            background:"linear-gradient(135deg,#0ea5e9,#2563eb)",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:"17px"
+          }}>🚆</div>
           <div>
-            <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: "15px", letterSpacing: "0.1em" }}>INDIAN RAILWAYS</div>
-            <div style={{ color: "#64748b", fontSize: "10px", letterSpacing: "0.15em" }}>DIGITAL ASSISTANCE KIOSK</div>
+            <div style={{color:"#e2e8f0",fontWeight:700,fontSize:"13px",letterSpacing:"0.1em"}}>INDIAN RAILWAYS</div>
+            <div style={{color:"#aabacfff",fontSize:"10px",letterSpacing:"0.15em"}}>DIGITAL ASSISTANCE KIOSK</div>
           </div>
         </div>
-        <div style={{ flex: 1, overflow: "hidden", margin: "0 20px" }}>
-          <div style={{ color: "#f59e0b", fontSize: "12px", whiteSpace: "nowrap", animation: "marquee 25s linear infinite" }}>
-            🔴 TRAIN 22691 RAJDHANI EXP – 90 MIN LATE | ⚠️ TRAIN 12951 MUMBAI RAJDHANI – 17 MIN LATE | ✅ TRAIN 12002 BHOPAL SHATABDI – ON TIME | 🔴 TRAIN 19027 VIVEK EXP – 45 MIN LATE
+
+        <div style={{flex:1,overflow:"hidden",margin:"0 14px"}}>
+          <div style={{color:"#f59e0b",fontSize:"11px",whiteSpace:"nowrap",animation:"marquee 40s linear infinite"}}>
+            {marqueeText}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: "18px" }}>{time.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</div>
-            <div style={{ color: "#64748b", fontSize: "10px" }}>{time.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}</div>
+
+        <div style={{display:"flex",alignItems:"center",gap:"10px",flexShrink:0}}>
+          <div style={{textAlign:"right"}}>
+            <div style={{color:"#e2e8f0",fontWeight:700,fontSize:"16px"}}>
+              {time.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}
+            </div>
+            <div style={{color:"#aabacfff",fontSize:"10px"}}>
+              {time.toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short"})}
+            </div>
           </div>
-          <button onClick={() => setLang(l => l === "en" ? "hi" : "en")} style={{ background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: "6px", padding: "6px 12px", color: "#93c5fd", cursor: "pointer", fontFamily: "inherit", fontSize: "13px", fontWeight: 600 }}>
-            {lang === "en" ? "हिंदी" : "English"}
+
+          {/* Language Dropdown */}
+          <div ref={langMenuRef} style={{position:"relative"}}>
+            <button
+              onClick={() => setShowLangMenu(v => !v)}
+              style={{
+                background:"#0c1a30",border:"1px solid #2563eb",borderRadius:"8px",
+                padding:"5px 10px",color:"#93c5fd",cursor:"pointer",
+                fontFamily:"inherit",fontSize:"12px",fontWeight:600,
+                display:"flex",alignItems:"center",gap:"5px",
+              }}
+            >
+              <span>{currentLang.flag}</span>
+              <span>{currentLang.label}</span>
+              <span style={{color:"#475569",fontSize:"10px"}}>{showLangMenu ? "▴" : "▾"}</span>
+            </button>
+
+            {showLangMenu && (
+              <div style={{
+                position:"absolute",top:"calc(100% + 5px)",right:0,
+                background:"#0c1825",border:"1px solid #1e3a5f",borderRadius:"10px",
+                padding:"5px",minWidth:"175px",zIndex:9999,
+                boxShadow:"0 10px 40px rgba(0,0,0,0.7)",
+                animation:"fadeUp 0.15s ease",
+              }}>
+                {LANGUAGES.map(l => (
+                  <button
+                    key={l.code}
+                    className="lang-opt"
+                    onClick={() => { setLang(l.code); setShowLangMenu(false); }}
+                    style={{
+                      display:"flex",alignItems:"center",gap:"8px",
+                      width:"100%",padding:"8px 10px",
+                      background:lang===l.code?"#1e3a5f":"transparent",
+                      border:"none",borderRadius:"6px",
+                      color:lang===l.code?"#e2e8f0":"#94a3b8",
+                      cursor:"pointer",fontFamily:"inherit",
+                      fontSize:"13px",fontWeight:lang===l.code?700:400,
+                      textAlign:"left",transition:"background 0.15s",
+                    }}
+                  >
+                    <span style={{fontSize:"15px"}}>{l.flag}</span>
+                    <span style={{flex:1}}>{l.label}</span>
+                    {lang===l.code && <span style={{color:"#0ea5e9",fontSize:"13px"}}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ═══ NAV — 2 tabs only ═══ */}
+      <nav style={{
+        background:"#060c18",borderBottom:"1px solid #1e3a5f",
+        display:"flex",alignItems:"stretch",flexShrink:0,padding:"0 6px",
+      }}>
+        {[
+          { key:"assistant", icon:"🎤", label:getTr("voiceAssistant",lang) },
+          { key:"trains",    icon:"🚆", label:getTr("trainBoard",lang) },
+        ].map(({ key, icon, label }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              padding:"11px 20px",background:"transparent",border:"none",
+              borderBottom:tab===key?"3px solid #0ea5e9":"3px solid transparent",
+              color:tab===key?"#e2e8f0":"#64748b",
+              cursor:"pointer",fontFamily:"inherit",
+              fontSize:"13px",fontWeight:700,letterSpacing:"0.05em",
+              display:"flex",alignItems:"center",gap:"6px",
+              transition:"all 0.2s",whiteSpace:"nowrap",
+            }}
+          >
+            <span>{icon}</span>
+            <span>{label}</span>
           </button>
-        </div>
-      </div>
-
-      {/* ── NAV TABS ── */}
-      <div style={{ background: "#0a1628", borderBottom: "1px solid #1e3a5f", display: "flex", overflowX: "auto" }}>
-        {Object.entries(T).map(([key, label]) => (
-          <button key={key} className="tab-btn" onClick={() => setTab(key)} style={{
-            padding: "12px 20px", background: tab === key ? "#0f2744" : "transparent",
-            border: "none", borderBottom: tab === key ? "2px solid #0ea5e9" : "2px solid transparent",
-            color: tab === key ? "#e2e8f0" : "#64748b", cursor: "pointer", fontFamily: "inherit",
-            fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", letterSpacing: "0.05em"
-          }}>{label}</button>
         ))}
-      </div>
+        <div style={{flex:1}}/>
+        <div style={{display:"flex",alignItems:"center",paddingRight:"12px",gap:"10px"}}>
+          {/* History toggle button */}
+          <button
+            onClick={() => setShowHistory(v => !v)}
+            style={{
+              background:showHistory?"#1e3a5f":"transparent",
+              border:`1px solid ${showHistory?"#0ea5e9":"#1e3a5f"}`,
+              borderRadius:"6px",padding:"4px 10px",
+              color:showHistory?"#e2e8f0":"#64748b",
+              cursor:"pointer",fontFamily:"inherit",
+              fontSize:"12px",fontWeight:600,
+              display:"flex",alignItems:"center",gap:"5px",
+              transition:"all 0.2s",
+            }}
+          >
+            🕘 History
+            {history.length > 0 && (
+              <span style={{
+                background:"#0ea5e9",color:"#fff",
+                borderRadius:"10px",padding:"0 5px",
+                fontSize:"10px",fontWeight:700,
+              }}>{history.length}</span>
+            )}
+          </button>
+          <div style={{display:"flex",alignItems:"center",gap:"5px"}}>
+            <div style={{width:"7px",height:"7px",borderRadius:"50%",background:"#22c55e",boxShadow:"0 0 6px #22c55e"}}/>
+            <span style={{color:"#334155",fontSize:"10px",fontWeight:600}}>LIVE</span>
+          </div>
+        </div>
+      </nav>
 
-      {/* ── MAIN CONTENT ── */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      {/* ═══ CONTENT ═══ */}
+      <main style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
 
-        {/* ══ HOME TAB ══ */}
-        {tab === "home" && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "24px", padding: "20px" }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ color: "#e2e8f0", fontSize: "28px", fontWeight: 700, letterSpacing: "0.05em" }}>
-                {lang === "hi" ? "नमस्ते! मैं आपकी सहायता करूँगा।" : "Namaste! How can I assist you?"}
-              </div>
-              <div style={{ color: "#64748b", fontSize: "14px", marginTop: "4px" }}>
-                {lang === "hi" ? "अपना प्रश्न बोलें या टाइप करें" : "Speak or type your query below"}
-              </div>
+        {/* ────── VOICE ASSISTANT TAB ────── */}
+        {tab === "assistant" && (
+          <div style={{
+            flex:1,display:"flex",flexDirection:"column",
+            alignItems:"center",justifyContent:"flex-start",
+            gap:"18px",padding:"22px 16px 16px",overflowY:"auto",
+          }}>
+
+            {/* Greeting */}
+            <div style={{textAlign:"center",animation:"fadeUp 0.4s ease"}}>
+              <h2 style={{color:"#e2e8f0",fontSize:"clamp(17px,2.5vw,24px)",fontWeight:700,margin:0,lineHeight:1.35}}>
+                {getTr("greeting",lang)}
+              </h2>
+              <p style={{color:"#64748b",fontSize:"13px",margin:"5px 0 0"}}>
+                {getTr("subGreeting",lang)}
+              </p>
             </div>
 
-            {/* Voice button */}
-            <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {listening && <>
-                <div style={{ position: "absolute", width: "120px", height: "120px", borderRadius: "50%", border: "2px solid #0ea5e9", animation: "pulse-ring 1.2s cubic-bezier(0.215,0.61,0.355,1) infinite" }} />
-                <div style={{ position: "absolute", width: "120px", height: "120px", borderRadius: "50%", border: "2px solid #0ea5e9", animation: "pulse-ring 1.2s cubic-bezier(0.215,0.61,0.355,1) 0.4s infinite" }} />
-              </>}
-              <button className={listening ? "" : "voice-btn"} onClick={listening ? stopListening : startListening} style={{
-                width: "100px", height: "100px", borderRadius: "50%",
-                background: listening ? "linear-gradient(135deg,#dc2626,#ef4444)" : "linear-gradient(135deg,#0369a1,#0ea5e9)",
-                border: "none", cursor: "pointer", fontSize: "40px", display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.3s"
-              }}>
+            {/* Voice Button */}
+            <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {listening && (
+                <>
+                  <div style={{
+                    position:"absolute",width:"128px",height:"128px",borderRadius:"50%",
+                    border:"2px solid #0ea5e9",
+                    animation:"pulse-ring 1.2s cubic-bezier(0.215,0.61,0.355,1) infinite",
+                    pointerEvents:"none",
+                  }}/>
+                  <div style={{
+                    position:"absolute",width:"128px",height:"128px",borderRadius:"50%",
+                    border:"2px solid #0ea5e9",
+                    animation:"pulse-ring 1.2s cubic-bezier(0.215,0.61,0.355,1) 0.4s infinite",
+                    pointerEvents:"none",
+                  }}/>
+                </>
+              )}
+              <button
+                className={listening ? "" : "glow-btn"}
+                onClick={listening ? stopListening : startListening}
+                style={{
+                  width:"92px",height:"92px",borderRadius:"50%",
+                  background:listening
+                    ?"linear-gradient(135deg,#dc2626,#ef4444)"
+                    :"linear-gradient(135deg,#0369a1,#0ea5e9)",
+                  border:"none",cursor:"pointer",
+                  fontSize:"36px",display:"flex",alignItems:"center",justifyContent:"center",
+                  transition:"transform 0.2s, background 0.3s",flexShrink:0,
+                  position:"relative",zIndex:1,
+                }}
+              >
                 {listening ? "⏹" : "🎤"}
               </button>
             </div>
-            <div style={{ color: listening ? "#0ea5e9" : "#475569", fontSize: "13px", fontWeight: 600, letterSpacing: "0.1em", animation: listening ? "blink 1s infinite" : "none" }}>
-              {listening ? (lang === "hi" ? "सुन रहा हूँ..." : "LISTENING...") : (lang === "hi" ? "बात करने के लिए दबाएँ" : "TAP TO SPEAK")}
+
+            <div style={{
+              color:listening?"#0ea5e9":"#475569",
+              fontSize:"11px",fontWeight:700,letterSpacing:"0.12em",
+              animation:listening?"blink 1s ease infinite":"none",
+            }}>
+              {listening ? getTr("listening",lang) : getTr("tapToSpeak",lang)}
             </div>
 
-            {/* Text input */}
-            <form onSubmit={handleTextSubmit} style={{ display: "flex", gap: "8px", width: "100%", maxWidth: "600px" }}>
-              <input value={transcript} onChange={e => setTranscript(e.target.value)}
-                placeholder={lang === "hi" ? "यहाँ टाइप करें... जैसे: ट्रेन 12951 की स्थिति" : "Type here... e.g. What is status of train 12951?"}
-                style={{ flex: 1, background: "#0f2744", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "12px 16px", color: "#e2e8f0", fontFamily: "inherit", fontSize: "14px", outline: "none" }}
+            {/* Text Input + Search Button */}
+            <form
+              onSubmit={handleTextSubmit}
+              style={{display:"flex",gap:"8px",width:"100%",maxWidth:"560px"}}
+            >
+              <input
+                value={inputText}
+                onChange={e => setInputText(e.target.value)}
+                placeholder={getTr("typeHere",lang)}
+                style={{
+                  flex:1,background:"#0a1628",
+                  border:"1px solid #1e3a5f",borderRadius:"10px",
+                  padding:"11px 15px",color:"#e2e8f0",
+                  fontFamily:"inherit",fontSize:"14px",outline:"none",
+                  transition:"border-color 0.2s",
+                }}
+                onFocus={e => { e.target.style.borderColor="#0ea5e9"; e.target.style.boxShadow="0 0 0 2px rgba(14,165,233,0.15)"; }}
+                onBlur={e  => { e.target.style.borderColor="#1e3a5f"; e.target.style.boxShadow="none"; }}
               />
-              <button type="submit" style={{ background: "#0369a1", border: "none", borderRadius: "8px", padding: "12px 20px", color: "white", cursor: "pointer", fontFamily: "inherit", fontSize: "14px", fontWeight: 700 }}>
-                {lang === "hi" ? "खोजें" : "Search"}
+              <button
+                type="submit"
+                style={{
+                  background:"linear-gradient(135deg,#0369a1,#0ea5e9)",
+                  border:"none",borderRadius:"10px",
+                  padding:"11px 20px",color:"#fff",
+                  cursor:"pointer",fontFamily:"inherit",
+                  fontSize:"14px",fontWeight:700,flexShrink:0,
+                  transition:"opacity 0.15s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity="0.85"}
+                onMouseLeave={e => e.currentTarget.style.opacity="1"}
+              >
+                {getTr("search",lang)}
               </button>
             </form>
 
-            {/* Intent result */}
+            {/* Result Card */}
             {intentResult && (
-              <div style={{ background: "#0f2744", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "16px 20px", maxWidth: "600px", width: "100%" }}>
-                <div style={{ color: "#64748b", fontSize: "11px", marginBottom: "6px", letterSpacing: "0.1em" }}>
-                  {transcript && `"${transcript}"`}
+              <div style={{
+                background:"#0a1628",border:"1px solid #1e3a5f",
+                borderRadius:"12px",padding:"15px 18px",
+                maxWidth:"560px",width:"100%",
+                animation:"fadeUp 0.25s ease",
+              }}>
+                {lastQuery && (
+                  <div style={{color:"#334155",fontSize:"11px",marginBottom:"8px",fontStyle:"italic"}}>
+                    "{lastQuery}"
+                  </div>
+                )}
+                <div style={{color:"#e2e8f0",fontSize:"15px",lineHeight:1.6}}>
+                  💬 {intentResult.response}
                 </div>
-                <div style={{ color: "#e2e8f0", fontSize: "16px", lineHeight: "1.5" }}>💬 {intentResult.response}</div>
                 {intentResult.train && (
-                  <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
-                    <button onClick={() => { setSelectedTrain(intentResult.train); setTab("status") }} style={{ background: "#1e3a5f", border: "none", borderRadius: "6px", padding: "6px 12px", color: "#93c5fd", cursor: "pointer", fontFamily: "inherit", fontSize: "12px" }}>
-                      📋 {lang === "hi" ? "विवरण देखें" : "View Details"}
+                  <div style={{marginTop:"12px",display:"flex",gap:"8px",flexWrap:"wrap"}}>
+                    <button
+                      onClick={() => { setTab("trains"); setExpandedTrain(intentResult.train.number); }}
+                      style={{
+                        background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:"6px",
+                        padding:"6px 14px",color:"#93c5fd",cursor:"pointer",
+                        fontFamily:"inherit",fontSize:"12px",fontWeight:600,
+                      }}
+                    >
+                      🚋 {getTr("viewCoaches",lang)}
                     </button>
-                    {qrImg && <button onClick={() => setTab("qr")} style={{ background: "#1e3a5f", border: "none", borderRadius: "6px", padding: "6px 12px", color: "#93c5fd", cursor: "pointer", fontFamily: "inherit", fontSize: "12px" }}>
-                      📱 {lang === "hi" ? "QR कोड" : "QR Code"}
-                    </button>}
+                    <button
+                      onClick={() => setTab("trains")}
+                      style={{
+                        background:"#0f2744",border:"1px solid #1e3a5f",borderRadius:"6px",
+                        padding:"6px 14px",color:"#64748b",cursor:"pointer",
+                        fontFamily:"inherit",fontSize:"12px",fontWeight:600,
+                      }}
+                    >
+                      📋 {getTr("trainBoard",lang)}
+                    </button>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Quick buttons */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "10px", width: "100%", maxWidth: "600px" }}>
-              {[
-                { icon: "🚆", label: lang === "hi" ? "ट्रेन स्थिति" : "Train Status", action: () => setTab("status") },
-                { icon: "🗺", label: lang === "hi" ? "स्टेशन मानचित्र" : "Station Map", action: () => setTab("map") },
-                { icon: "💺", label: lang === "hi" ? "कोच खोजें" : "Coach Finder", action: () => setTab("coach") },
-                { icon: "👥", label: lang === "hi" ? "भीड़ स्तर" : "Crowd Level", action: () => setTab("crowd") },
-                { icon: "📱", label: lang === "hi" ? "QR कोड" : "QR Code", action: () => setTab("qr") },
-                { icon: "ℹ️", label: lang === "hi" ? "सहायता" : "Help", action: () => speak(lang === "hi" ? "मैं ट्रेन की जानकारी, प्लेटफॉर्म, और स्टेशन सुविधाओं के बारे में बता सकता हूँ।" : "I can help with train info, platforms, and station facilities.", lang) },
-              ].map((btn, i) => (
-                <button key={i} onClick={btn.action} style={{
-                  background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "10px", padding: "14px 8px",
-                  cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
-                  transition: "all 0.2s"
-                }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#0f2744"}
-                  onMouseLeave={e => e.currentTarget.style.background = "#0a1628"}>
-                  <span style={{ fontSize: "22px" }}>{btn.icon}</span>
-                  <span style={{ color: "#93c5fd", fontSize: "12px", fontWeight: 600, textAlign: "center" }}>{btn.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ══ TRAIN STATUS TAB ══ */}
-        {tab === "status" && (
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            <div style={{ color: "#64748b", fontSize: "12px", letterSpacing: "0.1em", marginBottom: "12px" }}>
-              {lang === "hi" ? "ट्रेन सूची — आज के आगमन/प्रस्थान" : "TRAIN BOARD — TODAY'S ARRIVALS & DEPARTURES"}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-              {/* Header */}
-              <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 70px 70px 70px 70px 80px 80px", gap: "8px", padding: "8px 12px", background: "#0a1628", borderRadius: "6px", color: "#64748b", fontSize: "11px", letterSpacing: "0.08em" }}>
-                <span>#</span><span>TRAIN</span><span>ARR.</span><span>DEP.</span><span>PF</span><span>DELAY</span><span>STATUS</span><span>QR</span>
-              </div>
-              {TRAINS.map(t => (
-                <div key={t.number} className="train-row" onClick={() => setSelectedTrain(selectedTrain?.number === t.number ? null : t)} style={{
-                  display: "grid", gridTemplateColumns: "90px 1fr 70px 70px 70px 70px 80px 80px", gap: "8px",
-                  padding: "10px 12px", background: selectedTrain?.number === t.number ? "#0f2744" : "#0a1628",
-                  borderRadius: "6px", borderLeft: selectedTrain?.number === t.number ? "3px solid #0ea5e9" : "3px solid transparent",
-                  transition: "all 0.15s"
-                }}>
-                  <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: "13px" }}>{t.number}</span>
-                  <div>
-                    <div style={{ color: "#e2e8f0", fontSize: "13px", fontWeight: 600 }}>{lang === "hi" ? t.nameHindi : t.name}</div>
-                    <div style={{ color: "#64748b", fontSize: "11px" }}>{t.from} → {t.to}</div>
-                  </div>
-                  <span style={{ color: "#93c5fd", fontSize: "13px" }}>{t.actualArrival}</span>
-                  <span style={{ color: "#93c5fd", fontSize: "13px" }}>{t.actualDeparture}</span>
-                  <span style={{ color: "white", fontWeight: 700, fontSize: "15px", textAlign: "center" }}>{t.platform}</span>
-                  <span style={{ color: t.delay > 0 ? "#ef4444" : "#22c55e", fontSize: "13px", fontWeight: 600 }}>
-                    {t.delay > 0 ? `+${t.delay}m` : "—"}
-                  </span>
-                  <span style={{
-                    color: t.status === "on-time" ? "#22c55e" : "#ef4444", fontSize: "11px", fontWeight: 700,
-                    background: t.status === "on-time" ? "#052e16" : "#450a0a", padding: "2px 6px", borderRadius: "4px",
-                    display: "flex", alignItems: "center"
-                  }}>
-                    {t.status === "on-time" ? (lang === "hi" ? "समय पर" : "ON TIME") : (lang === "hi" ? "देरी" : "DELAYED")}
-                  </span>
-                  <button onClick={async (e) => { e.stopPropagation(); const url = `Train:${t.number}\n${t.name}\nPF:${t.platform}\nDep:${t.actualDeparture}`; const img = await generateQR(url); setQrImg(img); setQrData(url); setTab("qr"); }} style={{
-                    background: "#1e3a5f", border: "none", borderRadius: "4px", padding: "4px 8px", color: "#93c5fd",
-                    cursor: "pointer", fontFamily: "inherit", fontSize: "11px"
-                  }}>📱 QR</button>
-                </div>
-              ))}
-            </div>
-
-            {/* Selected train detail */}
-            {selectedTrain && (
-              <div style={{ marginTop: "16px", background: "#0f2744", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
-                  <div>
-                    <div style={{ color: "#f59e0b", fontSize: "22px", fontWeight: 700 }}>{selectedTrain.number}</div>
-                    <div style={{ color: "#e2e8f0", fontSize: "18px", fontWeight: 600 }}>{lang === "hi" ? selectedTrain.nameHindi : selectedTrain.name}</div>
-                    <div style={{ color: "#64748b", fontSize: "13px" }}>{selectedTrain.from} → {selectedTrain.to}</div>
-                  </div>
-                  <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-                    {[
-                      { label: lang === "hi" ? "आगमन" : "Arrival", val: selectedTrain.actualArrival, sub: selectedTrain.scheduledArrival !== selectedTrain.actualArrival ? `Sch: ${selectedTrain.scheduledArrival}` : null },
-                      { label: lang === "hi" ? "प्रस्थान" : "Departure", val: selectedTrain.actualDeparture },
-                      { label: lang === "hi" ? "प्लेटफॉर्म" : "Platform", val: selectedTrain.platform, big: true },
-                    ].map((item, i) => (
-                      <div key={i} style={{ textAlign: "center" }}>
-                        <div style={{ color: "#64748b", fontSize: "10px", letterSpacing: "0.1em" }}>{item.label}</div>
-                        <div style={{ color: item.big ? "#f59e0b" : "#e2e8f0", fontSize: item.big ? "28px" : "18px", fontWeight: 700 }}>{item.val}</div>
-                        {item.sub && <div style={{ color: "#64748b", fontSize: "10px" }}>{item.sub}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <button onClick={() => { setCoachInput(selectedTrain.number); setCoachTrain(selectedTrain); setTab("coach") }} style={{ marginTop: "12px", background: "#0369a1", border: "none", borderRadius: "6px", padding: "8px 16px", color: "white", cursor: "pointer", fontFamily: "inherit", fontSize: "13px", fontWeight: 600 }}>
-                  💺 {lang === "hi" ? "कोच स्थिति देखें" : "View Coach Layout"}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ══ MAP TAB ══ */}
-        {tab === "map" && (
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            <div style={{ color: "#64748b", fontSize: "12px", letterSpacing: "0.1em", marginBottom: "12px" }}>
-              {lang === "hi" ? "स्टेशन मानचित्र" : "STATION LAYOUT MAP"}
-            </div>
-            {/* Legend */}
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
-              {[{ type: "platform", color: "#0ea5e9", label: lang === "hi" ? "प्लेटफॉर्म" : "Platform" }, { type: "ticket", color: "#f59e0b", label: lang === "hi" ? "टिकट" : "Ticket" }, { type: "waiting", color: "#8b5cf6", label: lang === "hi" ? "प्रतीक्षा" : "Waiting" }, { type: "food", color: "#f97316", label: lang === "hi" ? "खाना" : "Food" }, { type: "exit", color: "#ef4444", label: lang === "hi" ? "निकास" : "Exit" }, { type: "atm", color: "#22c55e", label: "ATM" }, { type: "medical", color: "#ec4899", label: lang === "hi" ? "चिकित्सा" : "Medical" }].map(item => (
-                <div key={item.type} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <div style={{ width: "10px", height: "10px", borderRadius: "2px", background: item.color }} />
-                  <span style={{ color: "#94a3b8", fontSize: "11px" }}>{item.label}</span>
-                </div>
-              ))}
-            </div>
-            {/* Map */}
-            <div style={{ position: "relative", background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "12px", paddingBottom: "60%", overflow: "hidden" }}>
-              {/* Track lines */}
-              <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 100 100" preserveAspectRatio="none">
-                {[37, 46, 55].map(y => (
-                  <React.Fragment key={y}>
-                    <line x1="0" y1={y} x2="100" y2={y} stroke="#1e3a5f" strokeWidth="0.3" />
-                    <line x1="0" y1={y + 3.5} x2="100" y2={y + 3.5} stroke="#1e3a5f" strokeWidth="0.3" />
-                  </React.Fragment>
-                ))}
-                {/* Roof lines */}
-                <line x1="40" y1="0" x2="40" y2="100" stroke="#0f2744" strokeWidth="0.5" />
-                <line x1="60" y1="0" x2="60" y2="100" stroke="#0f2744" strokeWidth="0.5" />
-              </svg>
-              {/* Facilities */}
-              {MAP_FACILITIES.map(f => {
-                const colorMap = { platform: "#0369a1", ticket: "#92400e", waiting: "#4c1d95", food: "#92400e", exit: "#991b1b", atm: "#14532d", medical: "#831843", kiosk: "#065f46" };
-                const borderMap = { platform: "#0ea5e9", ticket: "#f59e0b", waiting: "#8b5cf6", food: "#f97316", exit: "#ef4444", atm: "#22c55e", medical: "#ec4899", kiosk: "#10b981" };
-                const isHighlighted = f.type === "platform" && f.pid === highlightPf;
-                const pfData = f.type === "platform" ? platforms.find(p => p.id === f.pid) : null;
-                return (
-                  <div key={f.id} onClick={() => { if (f.type === "platform" && f.pid) { setHighlightPf(f.pid === highlightPf ? null : f.pid) } }} style={{
-                    position: "absolute", left: `${f.x}%`, top: `${f.y}%`, width: `${f.w}%`, height: `${f.h}%`,
-                    background: colorMap[f.type] || "#1e3a5f",
-                    border: `1px solid ${borderMap[f.type] || "#334155"}`,
-                    borderRadius: "4px", cursor: f.type === "platform" ? "pointer" : "default",
-                    display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
-                    boxShadow: isHighlighted ? `0 0 12px ${borderMap[f.type]}` : "none",
-                    transition: "all 0.2s",
-                    outline: isHighlighted ? `2px solid ${borderMap[f.type]}` : "none"
-                  }}>
-                    <span style={{ color: "white", fontSize: "clamp(8px,1.2vw,12px)", fontWeight: 700, textAlign: "center", padding: "0 4px" }}>{f.label}</span>
-                    {pfData && (
-                      <div style={{ width: "80%", height: "3px", background: "#1e293b", borderRadius: "2px", marginTop: "2px" }}>
-                        <div style={{ width: `${pfData.crowdLevel}%`, height: "100%", background: crowdColor(pfData.crowdLevel), borderRadius: "2px", transition: "width 0.5s" }} />
-                      </div>
-                    )}
-                    {f.type === "kiosk" && <div style={{ color: "#6ee7b7", fontSize: "8px", fontWeight: 700 }}>📍</div>}
-                  </div>
-                );
-              })}
-            </div>
-            {/* Selected platform detail */}
-            {highlightPf && (() => {
-              const pf = platforms.find(p => p.id === highlightPf);
-              const pfTrains = TRAINS.filter(t => t.platform === highlightPf);
-              return (
-                <div style={{ marginTop: "12px", background: "#0f2744", border: "1px solid #0ea5e9", borderRadius: "10px", padding: "14px" }}>
-                  <div style={{ color: "#0ea5e9", fontWeight: 700, fontSize: "16px", marginBottom: "8px" }}>Platform {highlightPf}</div>
-                  <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-                    <div>
-                      <div style={{ color: "#64748b", fontSize: "11px" }}>CROWD</div>
-                      <div style={{ color: crowdColor(pf.crowdLevel), fontSize: "20px", fontWeight: 700 }}>{pf.crowdLevel}% – {crowdLabel(pf.crowdLevel)}</div>
-                    </div>
-                    <div>
-                      <div style={{ color: "#64748b", fontSize: "11px" }}>TRAINS</div>
-                      {pfTrains.length > 0 ? pfTrains.map(t => <div key={t.number} style={{ color: "#e2e8f0", fontSize: "13px" }}>{t.number} – {t.name}</div>) : <div style={{ color: "#64748b", fontSize: "13px" }}>None scheduled</div>}
-                    </div>
-                    <div>
-                      <div style={{ color: "#64748b", fontSize: "11px" }}>AMENITIES</div>
-                      {pf.amenities.map(a => <div key={a} style={{ color: "#93c5fd", fontSize: "13px" }}>{a}</div>)}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* ══ COACH FINDER TAB ══ */}
-        {tab === "coach" && (
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            <div style={{ color: "#64748b", fontSize: "12px", letterSpacing: "0.1em", marginBottom: "12px" }}>
-              {lang === "hi" ? "कोच स्थिति खोजें" : "COACH POSITION FINDER"}
-            </div>
-            <form onSubmit={handleCoachSearch} style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-              <input value={coachInput} onChange={e => setCoachInput(e.target.value)}
-                placeholder={lang === "hi" ? "ट्रेन नंबर दर्ज करें (जैसे 12951)" : "Enter train number (e.g. 12951)"}
-                style={{ flex: 1, background: "#0f2744", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "12px 16px", color: "#e2e8f0", fontFamily: "inherit", fontSize: "14px", outline: "none" }}
-              />
-              <button type="submit" style={{ background: "#0369a1", border: "none", borderRadius: "8px", padding: "12px 20px", color: "white", cursor: "pointer", fontFamily: "inherit", fontSize: "14px", fontWeight: 700 }}>
-                {lang === "hi" ? "खोजें" : "Find"}
-              </button>
-            </form>
-            {/* Quick select */}
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
-              {TRAINS.map(t => (
-                <button key={t.number} onClick={() => { setCoachInput(t.number); setCoachTrain(t) }} style={{
-                  background: coachTrain?.number === t.number ? "#1e3a5f" : "#0a1628",
-                  border: `1px solid ${coachTrain?.number === t.number ? "#0ea5e9" : "#1e3a5f"}`,
-                  borderRadius: "6px", padding: "6px 12px", color: "#93c5fd", cursor: "pointer", fontFamily: "inherit", fontSize: "12px"
-                }}>{t.number}</button>
-              ))}
-            </div>
-            {coachTrain && (
-              <div style={{ background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "16px" }}>
-                <div style={{ marginBottom: "12px" }}>
-                  <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: "18px" }}>{coachTrain.number}</span>
-                  <span style={{ color: "#e2e8f0", fontSize: "16px", marginLeft: "10px" }}>{lang === "hi" ? coachTrain.nameHindi : coachTrain.name}</span>
-                  <span style={{ color: "#64748b", fontSize: "12px", marginLeft: "10px" }}>Platform {coachTrain.platform} | Engine → {lang === "hi" ? "दिल्ली" : "Delhi"} side</span>
-                </div>
-                {/* Coach layout */}
-                <div style={{ display: "flex", gap: "4px", flexWrap: "nowrap", overflowX: "auto", paddingBottom: "8px" }}>
-                  {coachTrain.coaches.map((coach, i) => (
-                    <div key={i} style={{
-                      minWidth: "52px", height: "70px", borderRadius: "6px",
-                      background: COACH_COLORS[coach] || "#374151",
-                      border: "1px solid rgba(255,255,255,0.15)",
-                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                      padding: "4px"
-                    }}>
-                      <div style={{ color: "white", fontSize: "11px", fontWeight: 700 }}>{coach}</div>
-                      <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "8px", textAlign: "center", lineHeight: "1.2" }}>{COACH_LABELS[coach] || coach}</div>
-                      {coach !== "LOCO" && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "9px", marginTop: "2px" }}>#{i}</div>}
-                    </div>
-                  ))}
-                </div>
-                {/* Legend */}
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "12px" }}>
-                  {[["#7c3aed", "1st AC"], ["#0891b2", "2nd AC"], ["#059669", "3rd AC / Chair"], ["#d97706", "Sleeper"], ["#374151", "Loco/General"]].map(([c, l]) => (
-                    <div key={l} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <div style={{ width: "12px", height: "12px", borderRadius: "2px", background: c }} />
-                      <span style={{ color: "#94a3b8", fontSize: "11px" }}>{l}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ marginTop: "12px", color: "#64748b", fontSize: "12px" }}>
-                  📍 {lang === "hi" ? "इंजन प्लेटफॉर्म की शुरुआत में है। अपनी कोच संख्या के अनुसार खड़े हों।" : "Engine is at the start of the platform. Stand accordingly based on your coach number."}
-                </div>
-              </div>
-            )}
-            {coachInput && !coachTrain && (
-              <div style={{ color: "#ef4444", padding: "16px", background: "#450a0a", borderRadius: "8px" }}>
-                {lang === "hi" ? "ट्रेन नहीं मिली। कृपया सही नंबर दर्ज करें।" : "Train not found. Please enter a valid train number."}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ══ CROWD DENSITY TAB ══ */}
-        {tab === "crowd" && (
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            <div style={{ color: "#64748b", fontSize: "12px", letterSpacing: "0.1em", marginBottom: "4px" }}>
-              {lang === "hi" ? "लाइव भीड़ घनत्व — हर 4 सेकंड में अपडेट" : "LIVE CROWD DENSITY — Updated every 4s"}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: "12px", marginTop: "12px" }}>
-              {platforms.map(pf => {
-                const pfTrains = TRAINS.filter(t => t.platform === pf.id);
-                const angle = (pf.crowdLevel / 100) * 180;
-                return (
-                  <div key={pf.id} style={{ background: "#0a1628", border: `1px solid ${crowdColor(pf.crowdLevel)}40`, borderRadius: "12px", padding: "16px", position: "relative", overflow: "hidden" }}>
-                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#0f2744" }}>
-                      <div style={{ height: "100%", width: `${pf.crowdLevel}%`, background: crowdColor(pf.crowdLevel), transition: "width 0.5s", borderRadius: "2px" }} />
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div>
-                        <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: "16px" }}>Platform {pf.id}</div>
-                        <div style={{ color: "#64748b", fontSize: "11px", marginTop: "2px" }}>
-                          {pfTrains.length > 0 ? pfTrains.map(t => t.number).join(", ") : "No train"}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ color: crowdColor(pf.crowdLevel), fontSize: "26px", fontWeight: 800, lineHeight: 1 }}>{pf.crowdLevel}%</div>
-                        <div style={{ color: crowdColor(pf.crowdLevel), fontSize: "11px", fontWeight: 700 }}>{crowdLabel(pf.crowdLevel)}</div>
-                      </div>
-                    </div>
-                    {/* Gauge */}
-                    <div style={{ marginTop: "10px", display: "flex", justifyContent: "center" }}>
-                      <svg viewBox="0 0 120 70" width="120" height="70">
-                        <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="#1e293b" strokeWidth="10" strokeLinecap="round" />
-                        <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke={crowdColor(pf.crowdLevel)} strokeWidth="10" strokeLinecap="round"
-                          strokeDasharray={`${(pf.crowdLevel / 100) * 157} 157`} style={{ transition: "stroke-dasharray 0.5s" }} />
-                        <text x="60" y="58" textAnchor="middle" fill="#64748b" fontSize="9">{lang === "hi" ? "भीड़" : "Crowd"}</text>
-                      </svg>
-                    </div>
-                    <div style={{ marginTop: "6px" }}>
-                      {pf.amenities.map(a => (
-                        <span key={a} style={{ display: "inline-block", background: "#0f2744", borderRadius: "4px", padding: "2px 6px", fontSize: "10px", color: "#94a3b8", marginRight: "4px", marginBottom: "4px" }}>{a}</span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: "16px", display: "flex", gap: "16px", flexWrap: "wrap" }}>
-              {[["#22c55e", lang === "hi" ? "कम (<40%)" : "Low (<40%)"], [" #f59e0b", lang === "hi" ? "मध्यम (40-70%)" : "Moderate (40-70%)"], ["#ef4444", lang === "hi" ? "अधिक (>70%)" : "High (>70%)"]].map(([c, l]) => (
-                <div key={l} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: c.trim() }} />
-                  <span style={{ color: "#94a3b8", fontSize: "12px" }}>{l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ══ QR TAB ══ */}
-        {tab === "qr" && (
-          <div style={{ flex: 1, overflow: "auto", padding: "16px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div style={{ color: "#64748b", fontSize: "12px", letterSpacing: "0.1em", marginBottom: "16px" }}>
-              {lang === "hi" ? "QR कोड — अपने फोन पर जानकारी प्राप्त करें" : "QR CODE — Scan to get info on your phone"}
-            </div>
-            {qrImg ? (
-              <div style={{ textAlign: "center" }}>
-                <div style={{ background: "white", borderRadius: "12px", padding: "16px", display: "inline-block", boxShadow: "0 0 32px rgba(14,165,233,0.3)" }}>
-                  <img src={qrImg} alt="QR Code" style={{ display: "block", width: "200px", height: "200px" }} />
-                </div>
-                <div style={{ marginTop: "12px", color: "#93c5fd", fontSize: "13px" }}>
-                  📱 {lang === "hi" ? "अपने फोन के कैमरे से स्कैन करें" : "Scan with your phone camera"}
-                </div>
-                {qrData && <div style={{ marginTop: "8px", background: "#0a1628", borderRadius: "8px", padding: "10px 16px", color: "#64748b", fontSize: "12px", maxWidth: "300px", textAlign: "left", whiteSpace: "pre-line" }}>{qrData}</div>}
-              </div>
-            ) : (
-              <div style={{ color: "#64748b", fontSize: "14px", textAlign: "center" }}>
-                <div style={{ fontSize: "48px", marginBottom: "8px" }}>📱</div>
-                <div>{lang === "hi" ? "ट्रेन चुनें या वॉइस से पूछें, फिर QR जनरेट होगा।" : "Select a train or use voice query to generate a QR."}</div>
-              </div>
-            )}
-            {/* Quick generate for each train */}
-            <div style={{ marginTop: "24px", width: "100%", maxWidth: "500px" }}>
-              <div style={{ color: "#64748b", fontSize: "11px", letterSpacing: "0.1em", marginBottom: "8px" }}>QUICK GENERATE</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {TRAINS.map(t => (
-                  <button key={t.number} onClick={async () => {
-                    const info = `Train: ${t.number}\n${t.name}\nFrom: ${t.from}\nTo: ${t.to}\nPlatform: ${t.platform}\nDeparture: ${t.actualDeparture}\nStatus: ${t.status}${t.delay > 0 ? ` (+${t.delay} min)` : ""}`;
-                    const img = await generateQR(info);
-                    setQrImg(img); setQrData(info);
-                  }} style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "8px",
-                    padding: "10px 14px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s"
+            {/* Quick Chips */}
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",justifyContent:"center",maxWidth:"580px"}}>
+              {quickChips.map(c => (
+                <button
+                  key={c.num}
+                  className="chip-btn"
+                  onClick={() => { setInputText(c.num); processQuery(c.num); }}
+                  style={{
+                    background:"#0a1628",border:"1px solid #1e3a5f",
+                    borderRadius:"20px",padding:"6px 14px",
+                    cursor:"pointer",fontFamily:"inherit",
+                    display:"flex",alignItems:"center",gap:"6px",
+                    transition:"all 0.18s",
                   }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#0f2744"}
-                    onMouseLeave={e => e.currentTarget.style.background = "#0a1628"}>
-                    <div style={{ textAlign: "left" }}>
-                      <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: "13px" }}>{t.number}</span>
-                      <span style={{ color: "#e2e8f0", fontSize: "13px", marginLeft: "8px" }}>{t.name}</span>
-                    </div>
-                    <span style={{ color: "#0ea5e9", fontSize: "11px" }}>Generate →</span>
+                >
+                  <span style={{color:"#0ea5e9",fontSize:"11px"}}>▶</span>
+                  <span style={{color:"#94a3b8",fontSize:"11px"}}>{c.short}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ────── TRAIN BOARD TAB ────── */}
+        {tab === "trains" && (
+          <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+
+            {/* Sub-header */}
+            <div style={{
+              background:"#060c18",borderBottom:"1px solid #1e3a5f",
+              padding:"10px 14px",
+              display:"flex",alignItems:"center",justifyContent:"space-between",
+              flexWrap:"wrap",gap:"8px",flexShrink:0,
+            }}>
+              <div>
+                <div style={{color:"#e2e8f0",fontWeight:700,fontSize:"14px"}}>{getTr("trainBoard",lang)}</div>
+                <div style={{color:"#334155",fontSize:"10px"}}>{getTr("boardSubtitle",lang)}</div>
+              </div>
+              <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
+                {[
+                  { key:"all",       lbl:getTr("allTrains",lang)   },
+                  { key:"arriving",  lbl:getTr("arriving",lang)    },
+                  { key:"departing", lbl:getTr("departing",lang)   },
+                  { key:"passing",   lbl:getTr("passThrough",lang) },
+                ].map(({ key, lbl }) => (
+                  <button
+                    key={key}
+                    className="filter-tab"
+                    onClick={() => setTrainFilter(key)}
+                    style={{
+                      padding:"5px 11px",cursor:"pointer",
+                      fontFamily:"inherit",fontSize:"12px",fontWeight:600,
+                      border:`1px solid ${trainFilter===key?"#0ea5e9":"#1e3a5f"}`,
+                      borderRadius:"6px",
+                      background:trainFilter===key?"#0f2744":"transparent",
+                      color:trainFilter===key?"#e2e8f0":"#64748b",
+                      display:"flex",alignItems:"center",gap:"5px",
+                      transition:"all 0.18s",
+                    }}
+                  >
+                    {lbl}
+                    <span style={{
+                      background:trainFilter===key?"#0ea5e9":"#1e3a5f",
+                      color:trainFilter===key?"#fff":"#64748b",
+                      borderRadius:"10px",padding:"1px 6px",
+                      fontSize:"10px",fontWeight:700,
+                    }}>{counts[key]}</span>
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* Table */}
+            <div style={{flex:1,overflowY:"auto",padding:"8px 10px"}}>
+              {/* Column header */}
+              <div style={{
+                display:"grid",
+                gridTemplateColumns:"80px 1fr 80px 80px 48px 64px 105px",
+                gap:"6px",padding:"7px 12px",
+                background:"#0a1424",borderRadius:"6px",
+                color:"#334155",fontSize:"10px",letterSpacing:"0.1em",
+                marginBottom:"4px",position:"sticky",top:0,zIndex:10,
+              }}>
+                <span>{getTr("trainNo",lang)}</span>
+                <span>{getTr("trainName",lang)}</span>
+                <span>{getTr("arrival",lang)}</span>
+                <span>{getTr("departure",lang)}</span>
+                <span>{getTr("pf",lang)}</span>
+                <span>{getTr("delay",lang)}</span>
+                <span>{getTr("statusLabel",lang)}</span>
+              </div>
+
+              {filteredTrains.length === 0 && (
+                <div style={{textAlign:"center",color:"#475569",padding:"40px 0",fontSize:"14px"}}>
+                  {getTr("noTrains",lang)}
+                </div>
+              )}
+
+              <div style={{display:"flex",flexDirection:"column",gap:"3px"}}>
+                {filteredTrains.map(item => (
+                  <React.Fragment key={item.number}>
+                    <div
+                      className="train-row"
+                      onClick={() => setExpandedTrain(expandedTrain===item.number ? null : item.number)}
+                      style={{
+                        display:"grid",
+                        gridTemplateColumns:"80px 1fr 80px 80px 48px 64px 105px",
+                        gap:"6px",padding:"10px 12px",
+                        background:expandedTrain===item.number?"#0f2744":"#07111e",
+                        borderRadius:"7px",
+                        borderLeft:expandedTrain===item.number?"3px solid #0ea5e9":"3px solid transparent",
+                        transition:"all 0.15s",alignItems:"center",
+                      }}
+                    >
+                      <span style={{color:"#f59e0b",fontWeight:700,fontSize:"13px"}}>{item.number}</span>
+
+                      <div>
+                        <div style={{color:"#e2e8f0",fontSize:"13px",fontWeight:600}}>
+                          {getTrainName(item,lang)}
+                        </div>
+                        <div style={{color:"#334155",fontSize:"10px"}}>{item.from} → {item.to}</div>
+                      </div>
+
+                      <div>
+                        <div style={{color:"#93c5fd",fontSize:"13px"}}>{item.actualArrival}</div>
+                        {item.scheduledArrival!==item.actualArrival && (
+                          <div style={{color:"#475569",fontSize:"10px",textDecoration:"line-through"}}>{item.scheduledArrival}</div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div style={{color:"#93c5fd",fontSize:"13px"}}>{item.actualDeparture}</div>
+                        {item.scheduledDeparture!==item.actualDeparture && (
+                          <div style={{color:"#475569",fontSize:"10px",textDecoration:"line-through"}}>{item.scheduledDeparture}</div>
+                        )}
+                      </div>
+
+                      <span style={{color:"#f59e0b",fontWeight:700,fontSize:"16px",textAlign:"center"}}>
+                        {item.platform}
+                      </span>
+
+                      <span style={{color:item.delay>0?"#ef4444":"#22c55e",fontSize:"13px",fontWeight:700}}>
+                        {item.delay>0 ? `+${item.delay}m` : "—"}
+                      </span>
+
+                      {item.type==="passing" ? (
+                        <span style={{color:"#a78bfa",fontSize:"11px",fontWeight:700,background:"#2e1065",padding:"3px 7px",borderRadius:"4px"}}>
+                          {getTr("passing",lang)}
+                        </span>
+                      ) : item.status==="on-time" ? (
+                        <span style={{color:"#22c55e",fontSize:"11px",fontWeight:700,background:"#052e16",padding:"3px 7px",borderRadius:"4px"}}>
+                          {getTr("onTime",lang)}
+                        </span>
+                      ) : (
+                        <span style={{color:"#ef4444",fontSize:"11px",fontWeight:700,background:"#450a0a",padding:"3px 7px",borderRadius:"4px"}}>
+                          {getTr("delayed",lang)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Expanded coach view */}
+                    {expandedTrain===item.number && (
+                      <div style={{
+                        background:"#0a1628",border:"1px solid #1e3a5f",
+                        borderRadius:"10px",padding:"13px 15px",
+                        marginBottom:"2px",animation:"fadeUp 0.2s ease",
+                      }}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}}>
+                          <div style={{color:"#0ea5e9",fontWeight:700,fontSize:"12px",letterSpacing:"0.1em"}}>
+                            🚋 {getTr("coaches",lang)} — {item.number} {getTrainName(item,lang)}
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); setExpandedTrain(null); }}
+                            style={{
+                              background:"#1e3a5f",border:"none",borderRadius:"5px",
+                              padding:"3px 10px",color:"#94a3b8",cursor:"pointer",
+                              fontFamily:"inherit",fontSize:"11px",
+                            }}
+                          >{getTr("close",lang)}</button>
+                        </div>
+
+                        <div style={{display:"flex",gap:"4px",overflowX:"auto",paddingBottom:"6px"}}>
+                          {item.coaches.map((coach, i) => (
+                            <div key={i} style={{
+                              minWidth:"48px",height:"62px",borderRadius:"6px",
+                              background:COACH_COLORS[coach]||"#374151",
+                              border:"1px solid rgba(255,255,255,0.1)",
+                              display:"flex",flexDirection:"column",
+                              alignItems:"center",justifyContent:"center",
+                              padding:"3px",flexShrink:0,
+                            }}>
+                              <div style={{color:"#fff",fontSize:"11px",fontWeight:700}}>{coach}</div>
+                              <div style={{color:"rgba(255,255,255,0.55)",fontSize:"8px",textAlign:"center",lineHeight:1.2}}>
+                                {COACH_LABELS[coach]||coach}
+                              </div>
+                              {coach!=="LOCO" && (
+                                <div style={{color:"rgba(255,255,255,0.35)",fontSize:"8px"}}>#{i}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginTop:"8px"}}>
+                          {[["#7c3aed","1st AC"],["#0891b2","2nd AC"],["#059669","3rd AC/Chair"],["#d97706","Sleeper"],["#374151","Loco/General"]].map(([c,l])=>(
+                            <div key={l} style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                              <div style={{width:"10px",height:"10px",borderRadius:"2px",background:c}}/>
+                              <span style={{color:"#475569",fontSize:"10px"}}>{l}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
           </div>
         )}
-      </div>
+      </main>
 
-      {/* ── BOTTOM BAR ── */}
-      <div style={{ background: "#0a1628", borderTop: "1px solid #1e3a5f", padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: "#475569", fontSize: "11px" }}>🇮🇳 Indian Railways — Digital Enquiry Kiosk Demo</span>
-        <span style={{ color: "#475569", fontSize: "11px" }}>Powered by Web Speech API · Mock Data</span>
-        <button onClick={() => { setTab("home"); setIntentResult(null); setTranscript(""); setSelectedTrain(null); setCoachTrain(null); setQrImg(null); }} style={{ background: "#1e3a5f", border: "none", borderRadius: "4px", padding: "4px 10px", color: "#64748b", cursor: "pointer", fontFamily: "inherit", fontSize: "11px" }}>
-          🏠 {lang === "hi" ? "होम" : "Home"}
-        </button>
-      </div>
+      {/* ═══ HISTORY SIDE PANEL ═══ */}
+      {showHistory && (
+        <div style={{
+          position:"fixed",top:0,right:0,width:"340px",height:"100vh",
+          background:"#070d18",borderLeft:"1px solid #1e3a5f",
+          display:"flex",flexDirection:"column",
+          zIndex:1000,animation:"slideIn 0.25s ease",
+          boxShadow:"-8px 0 40px rgba(0,0,0,0.6)",
+        }}>
+          {/* Panel header */}
+          <div style={{
+            padding:"14px 16px",borderBottom:"1px solid #1e3a5f",
+            display:"flex",alignItems:"center",justifyContent:"space-between",
+            background:"#0c1825",flexShrink:0,
+          }}>
+            <div>
+              <div style={{color:"#e2e8f0",fontWeight:700,fontSize:"14px"}}>🕘 Query History</div>
+              <div style={{color:"#334155",fontSize:"10px",marginTop:"2px"}}>
+                {history.length} {history.length === 1 ? "entry" : "entries"} · tap to replay
+              </div>
+            </div>
+            <div style={{display:"flex",gap:"6px",alignItems:"center"}}>
+              {history.length > 0 && (
+                <button
+                  onClick={() => setHistory([])}
+                  style={{
+                    background:"#450a0a",border:"1px solid #7f1d1d",borderRadius:"5px",
+                    padding:"4px 8px",color:"#ef4444",cursor:"pointer",
+                    fontFamily:"inherit",fontSize:"10px",fontWeight:600,
+                  }}
+                >Clear</button>
+              )}
+              <button
+                onClick={() => setShowHistory(false)}
+                style={{
+                  background:"#1e3a5f",border:"none",borderRadius:"5px",
+                  width:"26px",height:"26px",color:"#94a3b8",
+                  cursor:"pointer",fontFamily:"inherit",fontSize:"14px",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                }}
+              >✕</button>
+            </div>
+          </div>
+
+          {/* Entries */}
+          <div style={{flex:1,overflowY:"auto",padding:"8px"}}>
+            {history.length === 0 ? (
+              <div style={{
+                display:"flex",flexDirection:"column",alignItems:"center",
+                justifyContent:"center",height:"100%",gap:"10px",
+                color:"#334155",
+              }}>
+                <span style={{fontSize:"36px",opacity:0.4}}>🕘</span>
+                <span style={{fontSize:"13px"}}>No queries yet</span>
+                <span style={{fontSize:"11px",textAlign:"center",maxWidth:"200px"}}>
+                  Your search and voice queries will appear here
+                </span>
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>
+                {history.map((entry, idx) => (
+                  <div
+                    key={entry.id}
+                    className="hist-item"
+                    style={{
+                      background:"#0a1628",border:"1px solid #1e3a5f",
+                      borderRadius:"10px",padding:"11px 13px",
+                      transition:"background 0.15s",cursor:"default",
+                    }}
+                  >
+                    {/* Top row: timestamp + lang + replay */}
+                    <div style={{
+                      display:"flex",alignItems:"center",justifyContent:"space-between",
+                      marginBottom:"7px",
+                    }}>
+                      <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+                        <span style={{
+                          background:"#1e3a5f",borderRadius:"4px",
+                          padding:"2px 6px",color:"#93c5fd",
+                          fontSize:"10px",fontWeight:600,
+                        }}>{entry.langLabel}</span>
+                        <span style={{color:"#334155",fontSize:"10px"}}>
+                          {entry.timestamp.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+                        </span>
+                        {idx === 0 && (
+                          <span style={{
+                            background:"#052e16",color:"#22c55e",
+                            borderRadius:"4px",padding:"1px 5px",
+                            fontSize:"9px",fontWeight:700,
+                          }}>LATEST</span>
+                        )}
+                      </div>
+                      <button
+                        className="hist-replay"
+                        onClick={() => {
+                          setInputText(entry.query);
+                          processQuery(entry.query);
+                          setShowHistory(false);
+                        }}
+                        style={{
+                          background:"#1e3a5f",border:"none",borderRadius:"4px",
+                          padding:"3px 8px",color:"#0ea5e9",
+                          cursor:"pointer",fontFamily:"inherit",
+                          fontSize:"10px",fontWeight:600,
+                          opacity:0.7,transition:"opacity 0.15s",
+                        }}
+                      >▶ Replay</button>
+                    </div>
+
+                    {/* Query */}
+                    <div style={{
+                      color:"#f59e0b",fontSize:"13px",fontWeight:600,
+                      marginBottom:"5px",
+                      display:"flex",alignItems:"flex-start",gap:"5px",
+                    }}>
+                      <span style={{color:"#475569",flexShrink:0,marginTop:"1px"}}>❓</span>
+                      <span>{entry.query}</span>
+                    </div>
+
+                    {/* Response */}
+                    <div style={{
+                      color:"#94a3b8",fontSize:"12px",lineHeight:1.5,
+                      display:"flex",alignItems:"flex-start",gap:"5px",
+                      borderTop:"1px solid #1e3a5f",paddingTop:"6px",
+                    }}>
+                      <span style={{color:"#0ea5e9",flexShrink:0,marginTop:"1px"}}>💬</span>
+                      <span>{entry.response}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Panel footer */}
+          <div style={{
+            padding:"8px 12px",borderTop:"1px solid #1e3a5f",
+            background:"#060c18",flexShrink:0,
+            display:"flex",alignItems:"center",justifyContent:"space-between",
+          }}>
+            <span style={{color:"#1e3a5f",fontSize:"10px"}}>Session history only · resets on page reload</span>
+          </div>
+        </div>
+      )}
+
+      {/* Overlay to close panel by clicking outside */}
+      {showHistory && (
+        <div
+          onClick={() => setShowHistory(false)}
+          style={{
+            position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",
+            zIndex:999,
+          }}
+        />
+      )}
+
+<div style={{padding:"10px",background:"#030712",borderTop:"1px solid #1e3a5f"}}>
+  <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
+    {SAMPLE_QUERIES.map((q, i) => (
+      <button
+        key={i}
+        onClick={() => handleSearch(q)}
+        style={{
+          background:"#0f2744",border:"1px solid #1e3a5f",
+          borderRadius:"6px",padding:"6px 10px",
+          color:"#94a3b8",cursor:"pointer",
+          fontFamily:"inherit",fontSize:"12px",
+        }}
+      >{q}</button>
+    ))}
+  </div>
+</div>  
+      {/* ═══ BOTTOM BAR ═══ */}
+      <footer style={{
+        background:"#060c18",borderTop:"1px solid #1e3a5f",
+        padding:"5px 14px",display:"flex",
+        justifyContent:"space-between",alignItems:"center",flexShrink:0,
+      }}>
+        <span style={{color:"#1e3a5f",fontSize:"10px"}}>🇮🇳 Indian Railways — Digital Kiosk</span>
+        <span style={{color:"#1e3a5f",fontSize:"10px"}}>EN · HI · TE · Mixed</span>
+        <button
+          onClick={() => {
+            setTab("assistant");
+            setIntentResult(null);
+            setInputText("");
+            setLastQuery("");
+            setExpandedTrain(null);
+          }}
+          style={{
+            background:"#0f2744",border:"none",borderRadius:"4px",
+            padding:"4px 10px",color:"#475569",cursor:"pointer",
+            fontFamily:"inherit",fontSize:"10px",
+          }}
+        >🏠 Reset</button>
+      </footer>
     </div>
+
+    </>
   );
 }
