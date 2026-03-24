@@ -372,9 +372,22 @@ function detectIntent(text, lang) {
   let destination = null;
 
   // ── Destination extraction ──
-  const enMatch = /to\s+([a-z\s]+)/.exec(lower);
+  const enMatch = /to\s+([a-z]+)/.exec(lower);
   const hiMatch = /([^\s]+)\s+के लिए/.exec(text);
   const teMatch = /([^\s]+)\s+(కు|కి)/.exec(text);
+
+  const stopWords = [
+  "today", "tomorrow", "now", "please", "any", "available"
+    ];
+
+    if (destination) {
+      destination = destination
+        .toLowerCase()
+        .split(" ")
+        .filter(word => !stopWords.includes(word))
+        .join(" ")
+        .trim();
+    }
 
   if (enMatch) destination = enMatch[1].trim();
   else if (hiMatch) destination = hiMatch[1].trim();
@@ -839,7 +852,7 @@ export default function RailwayKiosk() {
   ).join("   ·   ");
 
   const quickChips = [
-    { num:"trains to new delhi",    short:"Trains to Delhi" },
+    { num:"trains to new delhi",    short:"Trains to Delhi" },  
     { num:"12951",                  short:"Mumbai Rajdhani" },
     { num:"12723",                  short:"AP Express" },
     { num:"where is 22691",         short:"Rajdhani location" },
