@@ -839,6 +839,7 @@ export default function RailwayKiosk() {
   ).join("   ·   ");
 
   const quickChips = [
+    { num:"trains to new delhi",    short:"Trains to Delhi" },
     { num:"12951",                  short:"Mumbai Rajdhani" },
     { num:"12723",                  short:"AP Express" },
     { num:"where is 22691",         short:"Rajdhani location" },
