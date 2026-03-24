@@ -614,7 +614,7 @@ const utt = new SpeechSynthesisUtterance(formattedText);
     }
 
     // 🎙️ railway announcement tuning
-    utt.rate = 0.80;
+    utt.rate = 0.83;
     utt.pitch = 1.0;
 
     window.speechSynthesis.cancel();
