@@ -549,25 +549,84 @@ function detectIntent(text, lang) {
 }
 
 // ─── SPEAK ────────────────────────────────────────────────────────────────────
-function speakText(text, lang) {
-  if (!window.speechSynthesis) return;
+// function speakText(text, lang) {
+//   if (!window.speechSynthesis) return;
 
-  window.speechSynthesis.cancel();
+//   window.speechSynthesis.cancel();
 
-  // 🔹 Convert train numbers like 12951 → 1 2 9 5 1
-  const formattedText = text.replace(/\b\d{5}\b/g, (num) => {
+//   // 🔹 Convert train numbers like 12951 → 1 2 9 5 1
+//   const formattedText = text.replace(/\b\d{5}\b/g, (num) => {
+//     return num.split("").join(" ");
+//   });
+
+//   const langObj = LANGUAGES.find(l => l.code === lang) || LANGUAGES[0];
+
+//   const utt = new SpeechSynthesisUtterance(formattedText);
+//   utt.lang = langObj.speechLang;
+//   utt.rate = 0.9;
+//   utt.pitch = 1.0;
+
+//   window.speechSynthesis.speak(utt);
+// }
+
+// ─── SPEAK ────────────────────────────────────────────────────────────────────
+const speakText = (text, lang) => {
+  if (!text) return;
+
+  const speak = () => {
+    const voices = window.speechSynthesis.getVoices();
+
+// ✅ Format train numbers (only for Telugu)
+let formattedText = text;
+
+if (lang === "te" || lang === "en"  || lang === "hi" ) {
+  formattedText = text.replace(/\b\d{5}\b/g, (num) => {
     return num.split("").join(" ");
   });
-
-  const langObj = LANGUAGES.find(l => l.code === lang) || LANGUAGES[0];
-
-  const utt = new SpeechSynthesisUtterance(formattedText);
-  utt.lang = langObj.speechLang;
-  utt.rate = 0.9;
-  utt.pitch = 1.0;
-
-  window.speechSynthesis.speak(utt);
 }
+
+const utt = new SpeechSynthesisUtterance(formattedText);
+    let selectedVoice;
+
+    // ✅ Priority logic
+    if (lang === "te") {
+      // Try Telugu → fallback Hindi
+      selectedVoice =
+        voices.find(v => v.lang === "te-IN") ||
+        voices.find(v => v.lang === "hi-IN");
+    } else if (lang === "hi") {
+      selectedVoice = voices.find(v => v.lang === "hi-IN");
+    } else {
+      selectedVoice = voices.find(v => v.lang.startsWith("en"));
+      selectedVoice = voices.find(v => v.lang === "te-IN")
+
+    }
+
+    // fallback safety
+    if (!selectedVoice) {
+      selectedVoice = voices[0];
+    }
+
+    // apply voice
+    if (selectedVoice) {
+      utt.voice = selectedVoice;
+      utt.lang = selectedVoice.lang;
+    }
+
+    // 🎙️ railway announcement tuning
+    utt.rate = 0.80;
+    utt.pitch = 1.0;
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utt);
+  };
+
+  if (window.speechSynthesis.getVoices().length === 0) {
+    window.speechSynthesis.onvoiceschanged = speak;
+  } else {
+    speak();
+  }
+};
 // ─── CLOCK ────────────────────────────────────────────────────────────────────
 function useClock() {
   const [time, setTime] = useState(new Date());
@@ -600,7 +659,19 @@ export default function RailwayKiosk() {
   const time        = useClock();
 
   // Keep langRef current whenever lang state changes
-  useEffect(() => { langRef.current = lang; }, [lang]);
+  useEffect(() => {
+  langRef.current = lang;   // ✅ ADD THIS
+}, [lang]);
+
+  useEffect(() => {
+  const loadVoices = () => {
+    const voices = window.speechSynthesis.getVoices();
+    console.log("Voices loaded:", voices); // helps debugging
+  };
+
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+  loadVoices();
+}, []);
 
   // Close language menu on outside click
   useEffect(() => {
