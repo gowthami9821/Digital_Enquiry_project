@@ -361,21 +361,61 @@ function getResponseByLang(base, en, hi, te) {
 // ───────────────── MAIN FUNCTION ─────────────────
 function detectIntent(text, lang) {
   const lower = text.toLowerCase().trim();
-  const isTrainSearch = /train|trains|available/.test(lower);
-  const isToQuery = /to\s+([a-z\s]+)/.exec(lower);
+  if (!lower) return null;
+
+  const base = getLangBase(lang);
+
+  // ── Train search detection ──
+  const isTrainSearch =
+    /train|trains|available|ट्रेन|रेल|రైలు/.test(lower);
+
   let destination = null;
 
-  if (isToQuery) {
-    destination = isToQuery[1].trim();
+  // ── Destination extraction ──
+  const enMatch = /to\s+([a-z\s]+)/.exec(lower);
+  const hiMatch = /([^\s]+)\s+के लिए/.exec(text);
+  const teMatch = /([^\s]+)\s+(కు|కి)/.exec(text);
+
+  if (enMatch) destination = enMatch[1].trim();
+  else if (hiMatch) destination = hiMatch[1].trim();
+  else if (teMatch) destination = teMatch[1].trim();
+
+  // ── City normalization ──
+  const cityMap = {
+    "delhi": "new delhi",
+    "दिल्ली": "new delhi",
+    "దిల్లీ": "new delhi",
+
+    "mumbai": "mumbai central",
+    "मुंबई": "mumbai central",
+    "ముంబై": "mumbai central",
+
+    "hyderabad": "hyderabad",
+    "हैदराबाद": "hyderabad",
+    "హైదరాబాద్": "hyderabad"
+  };
+
+  if (destination) {
+    const key = destination.toLowerCase();
+    if (cityMap[key]) destination = cityMap[key];
   }
-  
+
+  // ── Train search ──
   if (isTrainSearch && destination) {
     const matched = TRAINS.filter(t =>
-      t.to.toLowerCase().includes(destination)
+      t.to.toLowerCase().includes(destination.toLowerCase())
     );
 
     if (matched.length === 0) {
-      return { response: "No trains found to " + destination };
+      return {
+        intent: "train_search",
+        response: getResponseByLang(
+          base,
+          `No trains found to ${destination}`,
+          `${destination} के लिए कोई ट्रेन नहीं मिली`,
+          `${destination} కు రైళ్లు లేవు`
+        )
+      };
     }
 
     const list = matched
@@ -383,15 +423,16 @@ function detectIntent(text, lang) {
       .join(", ");
 
     return {
-      response: `Available trains to ${destination} are ${list}`
+      intent: "train_search",
+      response: getResponseByLang(
+        base,
+        `Available trains to ${destination} are ${list}`,
+        `${destination} के लिए उपलब्ध ट्रेनें हैं: ${list}`,
+        `${destination} కు వెళ్లే రైళ్లు: ${list}`
+      )
     };
   }
-
-  if (!lower) return null;
-
-  const base = getLangBase(lang);
-
-  // ── Extract platform number ─────────────────────
+    // ── Extract platform number ─────────────────────
   const pfRaw = lower.match(/platform\s*(?:no\.?|number)?\s*(\d+)|(\d+)\s*(?:नंबर\s*)?(?:प्लेटफॉर्म|platform)|(?:ప్లాట్‌ఫారం)\s*(\d+)/i);
   const pfNum = pfRaw ? parseInt(pfRaw[1] || pfRaw[2] || pfRaw[3]) : null;
 
