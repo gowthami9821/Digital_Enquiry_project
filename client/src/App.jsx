@@ -361,6 +361,32 @@ function getResponseByLang(base, en, hi, te) {
 // ───────────────── MAIN FUNCTION ─────────────────
 function detectIntent(text, lang) {
   const lower = text.toLowerCase().trim();
+  const isTrainSearch = /train|trains|available/.test(lower);
+  const isToQuery = /to\s+([a-z\s]+)/.exec(lower);
+  let destination = null;
+
+  if (isToQuery) {
+    destination = isToQuery[1].trim();
+  }
+  
+  if (isTrainSearch && destination) {
+    const matched = TRAINS.filter(t =>
+      t.to.toLowerCase().includes(destination)
+    );
+
+    if (matched.length === 0) {
+      return { response: "No trains found to " + destination };
+    }
+
+    const list = matched
+      .map(t => `${t.name} (${t.number})`)
+      .join(", ");
+
+    return {
+      response: `Available trains to ${destination} are ${list}`
+    };
+  }
+
   if (!lower) return null;
 
   const base = getLangBase(lang);
@@ -388,7 +414,6 @@ function detectIntent(text, lang) {
 
   // ── Find train ─────────────────────────────────
   const train = findTrainByName(lower);
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // ✅ WHERE IS TRAIN
   if (train && isWhereQ) {
@@ -614,7 +639,7 @@ const utt = new SpeechSynthesisUtterance(formattedText);
     }
 
     // 🎙️ railway announcement tuning
-    utt.rate = 0.83;
+    utt.rate = 0.80;
     utt.pitch = 1.0;
 
     window.speechSynthesis.cancel();
